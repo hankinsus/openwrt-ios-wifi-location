@@ -1,12 +1,27 @@
 from __future__ import annotations
 
+import base64
 import re
 from urllib.parse import urlparse
 
 _HOST = re.compile(r"^[A-Za-z0-9.-]{1,253}(?::\d{1,5})?$")
 
-PS_MARKER = "___PS1___"
+# Unique separator line (a cmd.exe comment). The extractor stub must not contain
+# this literal; it rebuilds the string in pieces and uses LastIndexOf.
+PS_MARKER = "::IOS_WIFI_LOC_BEGIN_PS1"
+PS_MARKER_PREFIX = "::IOS_WIFI_LOC"
+PS_MARKER_SUFFIX = "_BEGIN_PS1"
 
+# ASCII stub: read this .bat as UTF-8 and iex everything after the last marker.
+PS_EXTRACTOR = (
+    "$p=$env:IOS_WIFI_LOC_SELF\n"
+    "if(-not $p){ Write-Host 'embedded script missing'; exit 1 }\n"
+    "$s=Get-Content -LiteralPath $p -Raw -Encoding UTF8\n"
+    f"$k=('{PS_MARKER_PREFIX}'+'{PS_MARKER_SUFFIX}')\n"
+    "$i=$s.LastIndexOf($k)\n"
+    "if($i -lt 0){ Write-Host 'embedded script missing'; exit 1 }\n"
+    "iex $s.Substring($i+$k.Length)\n"
+)
 
 class ToolError(ValueError):
     pass
@@ -129,12 +144,27 @@ def to_crlf(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\r\n")
 
 
+
 def encode_windows_pair_bat(script: str) -> bytes:
     """UTF-8 with BOM and CRLF, as required by cmd.exe on Chinese Windows."""
     text = to_crlf(script)
     if not text.endswith("\r\n"):
         text += "\r\n"
     return b"\xef\xbb\xbf" + text.encode("utf-8")
+
+
+def encoded_extractor_command() -> str:
+    """UTF-16LE base64 for powershell -EncodedCommand (avoids cmd quoting)."""
+    return base64.b64encode(PS_EXTRACTOR.encode("utf-16le")).decode("ascii")
+
+
+def extract_embedded_ps_body(script: str) -> str:
+    """Return the PowerShell body after the last marker occurrence."""
+    text = script.replace("\r\n", "\n").replace("\r", "\n")
+    idx = text.rfind(PS_MARKER)
+    if idx < 0:
+        raise ValueError("embedded script missing")
+    return text[idx + len(PS_MARKER) :].lstrip("\n")
 
 
 def server_base_from_host(host: str, *, scheme: str = "http") -> str:
@@ -155,21 +185,16 @@ def render_windows_pair_bat(server: str) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ToolError("服务器地址无效")
     base = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
-    # Header is ASCII-only so cmd.exe (CP936) never mis-parses UTF-8 or '^' continuations.
+    # Header is ASCII-only. EncodedCommand avoids cmd.exe quote/ampersand splitting;
+    # the stub uses LastIndexOf and a constructed marker so it cannot iex itself.
+    encoded = encoded_extractor_command()
     header = "\n".join(
         [
             "@echo off",
             "setlocal EnableExtensions",
             f'set "IOS_WIFI_LOC_SERVER={base}"',
             'set "IOS_WIFI_LOC_SELF=%~f0"',
-            "powershell -NoProfile -ExecutionPolicy Bypass -Command \""
-            "$p=$env:IOS_WIFI_LOC_SELF; "
-            "$s=Get-Content -LiteralPath $p -Raw -Encoding UTF8; "
-            f"$k='{PS_MARKER}'; "
-            "$i=$s.IndexOf($k); "
-            "if($i -lt 0){ Write-Host 'embedded script missing'; exit 1 }; "
-            "iex $s.Substring($i+$k.Length)"
-            "\"",
+            "powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand " + encoded,
             "if errorlevel 1 ( echo. & echo The pairing tool did not finish. See the messages above. ) else ( echo. & echo All done. )",
             "echo.",
             "pause",

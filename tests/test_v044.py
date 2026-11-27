@@ -18,9 +18,9 @@ CLEAR_URL = "https://www.icloud.com/shortcuts/395385a36be94384a85480d7459d1fa1"
 
 
 def test_version_is_044():
-    assert __version__ == "0.4.12"
+    assert __version__ == "0.4.13"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.12" in html
+    assert "v0.4.13" in html
     assert "v0.4.3" not in html
 
 

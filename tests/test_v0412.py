@@ -5,29 +5,29 @@ from pathlib import Path
 from ios_wifi_loc import __version__
 from ios_wifi_loc.platform_label import detect_platform_label
 from ios_wifi_loc.web_page import footer_brand, render_page
-from ios_wifi_loc.windows_pair import PS_MARKER, encode_windows_pair_bat, render_windows_pair_bat
+from ios_wifi_loc.windows_pair import PS_MARKER, encode_windows_pair_bat, extract_embedded_ps_body, render_windows_pair_bat
 
 
 def test_version_is_0412():
-    assert __version__ == "0.4.12"
+    assert __version__ == "0.4.13"
     html = render_page("csrf", no_auth=True, platform="")
     assert "<title>WiFi 虚拟定位</title>" in html
-    assert "WiFi 虚拟定位 · v0.4.12" in html
+    assert "WiFi 虚拟定位 · v0.4.13" in html
     assert "v0.4.11" not in html
 
 
 def test_windows_pair_bat_ascii_header_crlf_and_uploads_all_plists():
     script = render_windows_pair_bat("http://10.16.1.2:19443")
-    # The marker also appears in the header as $k='___PS1___'; split on the standalone line.
     sep = "\r\n" + PS_MARKER + "\r\n"
     assert sep in script
-    header, body = script.split(sep, 1)
+    header = script.rsplit(sep, 1)[0]
+    body = extract_embedded_ps_body(script)
     header.encode("ascii")
     assert "\r\n" in header and script.startswith("@echo off\r\n")
-    assert "^" not in header and "^" not in body
-    assert "powershell -NoProfile -ExecutionPolicy Bypass -Command" in header
-    assert "iex $s.Substring" in header
-    assert "Get-Content -LiteralPath $p -Raw -Encoding UTF8" in header
+    assert "^" not in header
+    assert "powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand" in header
+    assert " -Command " not in header
+    assert PS_MARKER not in header
     assert body.strip()
     assert "WindowsApps" in body
     assert "winget install -e --id Python.Python.3.12 --accept-package-agreements --accept-source-agreements" in body
@@ -60,14 +60,14 @@ def test_none_os_release_path_uses_default_and_openwrt_fallback(tmp_path, monkey
     monkeypatch.setattr("ios_wifi_loc.platform_label.DEFAULT_OPENWRT_RELEASE", missing)
     assert detect_platform_label(None) == "OpenWrt"
     assert detect_platform_label() == "OpenWrt"
-    assert footer_brand() == "WiFi 虚拟定位 · OpenWrt · v0.4.12"
+    assert footer_brand() == "WiFi 虚拟定位 · OpenWrt · v0.4.13"
 
     os_release.unlink()
     openwrt.write_text("DISTRIB_ID='OpenWrt'\nDISTRIB_RELEASE='24.10.0'\n", encoding="utf-8")
     monkeypatch.setattr("ios_wifi_loc.platform_label.DEFAULT_OS_RELEASE", missing)
     monkeypatch.setattr("ios_wifi_loc.platform_label.DEFAULT_OPENWRT_RELEASE", openwrt)
     assert detect_platform_label(None, system="linux") == "OpenWrt"
-    assert footer_brand() == "WiFi 虚拟定位 · OpenWrt · v0.4.12"
+    assert footer_brand() == "WiFi 虚拟定位 · OpenWrt · v0.4.13"
 
 
 def test_footer_is_full_width_centered_outside_panel():
