@@ -15,10 +15,10 @@ HOST_B = "fe80::2%br-lan"
 
 
 def test_version_is_0414():
-    assert __version__ == "0.4.14"
+    assert __version__ == "0.5.15"
     html = render_page("csrf", no_auth=True, platform="")
     assert "<title>WiFi 虚拟定位</title>" in html
-    assert "WiFi 虚拟定位 · v0.4.14" in html
+    assert "WiFi 虚拟定位 · v0.5.15" in html
     assert "v0.4.13" not in html
 
 
@@ -32,21 +32,22 @@ def test_web_page_custom_dropdowns_separate_meta_and_no_auto_scan():
     assert 'id="device-select"' in html
     assert 'id="device-select-btn"' in html
     assert 'id="device-select-list"' in html
-    assert 'id="transport-pills"' in html
+    assert 'id="transport-pills"' not in html
+    assert 'id="device-info-transport"' not in html
+    assert "function setTransport(value)" not in html
     assert 'id="transport"' in html
-    assert "<input type=\"hidden\" id=\"transport\"" in html or "<input type='hidden' id='transport'" in html or 'id="transport" value="mobdev2"' in html
-    assert "mobdev2（无线）" in html
-    assert "usbmux 网络" in html
-    assert "remotepairing" in html
+    assert 'id="transport" value="mobdev2"' in html
+    assert "mobdev2（无线）" not in html
+    assert "usbmux 网络" not in html
+    assert "传输类型" not in html
     assert 'id="device-info-udid"' in html
     assert 'id="device-info-host"' in html
-    assert 'id="device-info-transport"' in html
     assert "function closeDeviceMenu()" in html
     assert "function toggleDeviceMenu()" in html
-    assert "function setTransport(value)" in html
     assert "function fillMetaRow(id, label, value)" in html
     assert 'fillMetaRow("device-info-udid", "UDID"' in html
     assert 'fillMetaRow("device-info-host", "IP"' in html
+    assert 'fillMetaRow("device-info-transport"' not in html
     assert 'event.key === "Escape"' in html
     assert "pointerdown" in html
     assert "min-height:44px" in html
@@ -55,7 +56,7 @@ def test_web_page_custom_dropdowns_separate_meta_and_no_auto_scan():
     assert "await refresh()" in after
     assert "scan(" not in after
     assert 'api("/api/discover"' not in after
-    assert "class=\"segment" in html
+    assert "class=\"segment" not in html
     assert "class=\"menu-select-toggle\"" in html
 
 

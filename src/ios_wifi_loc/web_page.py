@@ -109,13 +109,9 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .menu-option { display:block; width:100%; min-height:44px; text-align:left; border:none; background:transparent; border-radius:8px; padding:10px 12px; font-size:15px; color:var(--text); cursor:pointer; }
 .menu-option:hover, .menu-option:focus { background:#f2f2f7; }
 .menu-option.is-selected { background:#e8f1ff; font-weight:600; }
-.segmented { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
-.segment { flex:1 1 calc(33.33% - 6px); min-height:44px; border:1px solid #d1d1d6; background:#fff; color:var(--text); border-radius:10px; font-size:13px; padding:8px 10px; cursor:pointer; }
-.segment.is-active { background:var(--blue); color:#fff; border-color:var(--blue); font-weight:600; }
 .device-info-meta { display:flex; flex-direction:column; gap:4px; font-size:12px; color:#3a3a3c; min-width:0; }
 .device-info-row { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; line-height:1.45; overflow-wrap:anywhere; word-break:break-all; min-width:0; }
 .device-info-label { color:var(--gray); font-family:-apple-system,system-ui,sans-serif; font-size:11px; margin-right:6px; }
-.device-info-transport { font-family:-apple-system,system-ui,sans-serif; }
 .device-status { margin-top:8px; font-size:13px; line-height:1.5; min-height:1.5em; }
 .device-status .badge { margin-right:6px; }
 .pair-steps { display:flex; flex-direction:column; gap:10px; margin:10px 0; }
@@ -202,7 +198,6 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
           <span class="badge badge-disconnected" id="device-info-picked" hidden>未连接</span>
         </div>
         <div class="device-info-meta" id="device-info-meta">
-          <div class="device-info-row device-info-transport" id="device-info-transport"></div>
           <div class="device-info-row" id="device-info-udid"></div>
           <div class="device-info-row" id="device-info-host"></div>
         </div>
@@ -210,15 +205,8 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
       </div>
       <details id="manual-device">
         <summary>高级 / 手动添加</summary>
-        <p class="notice" style="text-align:left;margin:8px 0 0 0">传输类型、主机和标识仅在设备未被自动发现时需要手动填写。</p>
-        <label>传输
-          <div class="segmented" id="transport-pills" role="radiogroup" aria-label="传输">
-            <button type="button" class="segment is-active" data-value="mobdev2" aria-pressed="true">mobdev2（无线）</button>
-            <button type="button" class="segment" data-value="usbmux" aria-pressed="false">usbmux 网络</button>
-            <button type="button" class="segment" data-value="remotepairing" aria-pressed="false">remotepairing</button>
-          </div>
-          <input type="hidden" id="transport" value="mobdev2">
-        </label>
+        <p class="notice" style="text-align:left;margin:8px 0 0 0">标识（UDID）和主机仅在设备未被自动发现时需要手动填写。</p>
+        <input type="hidden" id="transport" value="mobdev2">
         <label>标识 <input id="udid" class="field" type="text" autocomplete="off"></label>
         <label>主机（可选，支持 IPv6 如 fe80::1%br-lan） <input id="host" class="field" type="text" autocomplete="off"></label>
         <div class="row"><button class="btn btn-primary" id="choose" type="button">选择此设备</button></div>
@@ -454,16 +442,6 @@ function setDeviceMenuLabel(text) {
   const btn = $("device-select-btn");
   if (btn) btn.textContent = text;
 }
-function setTransport(value) {
-  const field = $("transport");
-  const next = value || "mobdev2";
-  if (field) field.value = next;
-  document.querySelectorAll("#transport-pills .segment").forEach((btn) => {
-    const on = btn.dataset.value === next;
-    btn.classList.toggle("is-active", on);
-    btn.setAttribute("aria-pressed", on ? "true" : "false");
-  });
-}
 function fillMetaRow(id, label, value) {
   const row = $(id);
   if (!row) return;
@@ -525,8 +503,6 @@ function paintDeviceSelect(data) {
   if (current) {
     if (info) info.hidden = false;
     if ($("device-info-title")) $("device-info-title").textContent = deviceCardTitle(current);
-    const transportLabel = current.transport || current.connection || "";
-    fillMetaRow("device-info-transport", "传输", transportLabel);
     fillMetaRow("device-info-udid", "UDID", current.udid || "");
     fillMetaRow("device-info-host", "IP", current.host || "");
     if (picked) {
@@ -547,7 +523,6 @@ function paintDeviceSelect(data) {
   } else {
     if (info) info.hidden = !devices.length;
     if ($("device-info-title")) $("device-info-title").textContent = devices.length ? "请选择一台 iPhone" : "未发现设备";
-    fillMetaRow("device-info-transport", "传输", "");
     fillMetaRow("device-info-udid", "UDID", "");
     fillMetaRow("device-info-host", "IP", "");
     if (picked) picked.hidden = true;
@@ -681,7 +656,6 @@ function paint(data) {
   const ready = !!(data && data.tunneld && data.tunneld.reachable);
   paintDeviceSelect(data);
   if (data.selected && data.selected.udid) $("udid").value = data.selected.udid;
-  if (data.selected && data.selected.transport) setTransport(data.selected.transport);
   if (data.selected && data.selected.host) $("host").value = data.selected.host;
   const list = $("favs");
   list.replaceChildren();
@@ -967,7 +941,7 @@ function copyText(text) {
 $("discover").onclick = scan;
 $("choose").onclick = async () => {
   try {
-    paint(await api("/api/select", {method:"POST", body: JSON.stringify({udid:$("udid").value, transport:$("transport").value, host:$("host").value})}));
+    paint(await api("/api/select", {method:"POST", body: JSON.stringify({udid:$("udid").value, transport: ($("transport") && $("transport").value) || "mobdev2", host:$("host").value})}));
     toast("已记录选择");
   } catch (error) { $("action-error").textContent = error.message; toast(error.message); }
 };
@@ -1085,9 +1059,6 @@ document.addEventListener("pointerdown", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closeDeviceMenu();
-});
-document.querySelectorAll("#transport-pills .segment").forEach((btn) => {
-  btn.onclick = () => setTransport(btn.dataset.value);
 });
 document.querySelectorAll("[data-copy-target]").forEach((btn) => {
   btn.onclick = async () => {
