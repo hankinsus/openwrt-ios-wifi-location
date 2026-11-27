@@ -960,12 +960,10 @@ CITIES.forEach((city) => {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.textContent = city.name;
-  btn.onclick = async () => {
+  btn.onclick = () => {
     document.querySelectorAll("#presets button").forEach((item) => item.classList.toggle("is-selected", item === btn));
     clearFavoriteSelection();
-    moveTo(city.lat, city.lon, 14);
-    revealMap();
-    await setLocation(true);
+    previewLocation(city.lat, city.lon, 14, "已选中城市「" + city.name + "」，点击「设置定位」生效");
   };
   $("presets").appendChild(btn);
 });
