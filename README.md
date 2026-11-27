@@ -1,34 +1,61 @@
 # ios-wifi-loc 0.2.1
 
-在 NanoPi R4S 上，把这个目录传上去之后只跑一条：
+在 R4S 或其它 OpenWrt / Debian / Ubuntu 机器上，**一条命令**完成下载、补齐环境和安装，不用先手动下载或上传安装包：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/hankinsus/openwrt-ios-wifi-location/main/install.sh | sh
+```
+
+没有 `curl` 时：
+
+```sh
+wget -qO- https://raw.githubusercontent.com/hankinsus/openwrt-ios-wifi-location/main/install.sh | sh
+```
+
+OpenWrt 常用：
+
+```sh
+uclient-fetch -O- https://raw.githubusercontent.com/hankinsus/openwrt-ios-wifi-location/main/install.sh | sh
+```
+
+需要指定网卡，或先预览再安装：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/hankinsus/openwrt-ios-wifi-location/main/install.sh | sh -s -- --interface br-lan
+curl -fsSL https://raw.githubusercontent.com/hankinsus/openwrt-ios-wifi-location/main/install.sh | sh -s -- --dry-run
+```
+
+在 OpenWrt 上如果存在 `br-lan`，并且你没有写 `--interface`，安装脚本会自动加上 `--interface br-lan`，方便在局域网打开页面。服务仍然不会监听 `0.0.0.0`。
+
+卸载启动脚本和隔离环境（不卸载系统里的 Python，也不改防火墙；默认保留口令）：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/hankinsus/openwrt-ios-wifi-location/main/uninstall.sh | sh
+```
+
+同时删除状态目录：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/hankinsus/openwrt-ios-wifi-location/main/uninstall.sh | sh -s -- --purge-state
+```
+
+对外使用的公开仓库是 <https://github.com/hankinsus/openwrt-ios-wifi-location>。这条安装还没有在真机 R4S 或 OpenWrt 上跑过。
+
+已经把源码目录放到机器上时，也可以直接跑：
 
 ```bash
 sh scripts/oneclick-install.sh --interface br-lan
-```
-
-它会识别 OpenWrt（看 `/etc/openwrt_release`，用 `opkg`，OpenWrt 24.10+ 则用 `apk`）或 Debian/Ubuntu（`apt-get`），先打印要装的包、内存和磁盘，再补齐 Python 3.9+、pip 和 usbmuxd。优先创建 venv；OpenWrt 上没有 venv 模块时改把依赖装进隔离目录，不写入系统 site-packages。然后安装本工具和 `requirements-upstream.txt` 里的 pymobiledevice3，运行 preflight，并写入 procd 或 systemd。局域网访问用 `--interface br-lan`，只绑定这块网卡，不监听 `0.0.0.0`。
-
-先看会做什么，不改系统：
-
-```bash
 sh scripts/oneclick-install.sh --interface br-lan --dry-run
-```
-
-卸掉启动脚本和隔离环境。不卸载系统里的 Python，也不改防火墙。默认保留口令；`--purge-state` 才删状态目录：
-
-```bash
 sh scripts/oneclick-uninstall.sh
 ```
 
-这条安装没有在真机 R4S 或 OpenWrt 上跑过。下面的包管理器测试用的是替身命令。
+它会识别 OpenWrt（看 `/etc/openwrt_release`，用 `opkg`，OpenWrt 24.10+ 则用 `apk`）或 Debian/Ubuntu（`apt-get`），先打印要装的包、内存和磁盘，再补齐 Python 3.9+、pip 和 usbmuxd。优先创建 venv；OpenWrt 上没有 venv 模块时改把依赖装进隔离目录，不写入系统 site-packages。然后安装本工具和 `requirements-upstream.txt` 里的 pymobiledevice3，运行 preflight，并写入 procd 或 systemd。局域网访问用 `--interface br-lan`，只绑定这块网卡，不监听 `0.0.0.0`。
 
 iPhone 本机精简版在 `ios-native/`，许可证是 AGPL-3.0，和这个 Python 控制台不是同一个程序。本机程序用免费 Apple ID 侧载，描述文件大约 7 天有效；付费开发者计划不是前提。这个 Python 控制台不在 R4S 上安装该 App，因此没有该 App 的 7 天签名。手机开发者模式是系统开关，不是会员。
 
 在同一局域网里，用浏览器控制 iPhone 的开发者定位模拟。日常不需要再敲定位命令。
 
 手机协议仍由上游 [pymobiledevice3](https://github.com/doronz88/pymobiledevice3) 11.63.1 执行。本工具不改路由、防火墙或 PassWall，不刷固件，不读取配对文件，也不使用 Apple ID。
-
-公开仓库目标仍是 <https://github.com/ilovestudyus-sketch/openwrt-ios-wifi-location>。当前环境没有 GitHub 登录凭据，这一版也没有推上去，该仓库会保持为空，直到 Cursor 的 GitHub 连接把写入权限交给 git。
 
 ## 安装时做了什么
 
