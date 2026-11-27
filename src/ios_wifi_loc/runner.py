@@ -171,6 +171,9 @@ def holder_matches(pid: int) -> bool:
     if not pid_alive(pid):
         return False
     text = process_args(pid)
+    tokens = text.split()
+    if "_hold" in tokens:
+        return True
     return "simulate-location" in text and "set" in text
 
 

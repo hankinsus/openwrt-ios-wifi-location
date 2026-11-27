@@ -71,14 +71,21 @@ def cli(tmp_path):
         sessions = payload.get("sessions") or {}
         if isinstance(sessions, dict):
             for item in sessions.values():
-                if isinstance(item, dict) and isinstance(item.get("pid"), int):
-                    pids.append(item["pid"])
+                if not isinstance(item, dict):
+                    continue
+                for key in ("pid", "watchdog_pid", "child_pid"):
+                    value = item.get(key)
+                    if isinstance(value, int):
+                        pids.append(value)
         for pid in pids:
             if pid > 1:
                 try:
-                    os.kill(pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
+                    os.killpg(pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError, OSError):
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
 
 
 def test_coords_and_identifiers():
@@ -481,3 +488,92 @@ def test_two_devices_hold_independent_locations(cli):
     assert UDID in sessions and sessions[UDID]["alive"] is True
     assert OTHER not in sessions
     assert status["details"]["session_alive"] is False
+
+
+
+def test_watchdog_reconnects_after_network_unreachable(cli):
+    crash = cli.state / "crash-count"
+    extra = {
+        "IOS_WIFI_LOC_FAKE_CRASH_TIMES": "1",
+        "IOS_WIFI_LOC_FAKE_CRASH_AFTER": "0.25",
+        "IOS_WIFI_LOC_FAKE_CRASH_COUNTER": str(crash),
+        "IOS_WIFI_LOC_WATCHDOG_BACKOFF": "0.05,0.05,0.05",
+    }
+    first, _ = cli.run(["select", "--udid", UDID, "--transport", "usbmux"])
+    assert first.returncode == 0
+    started, payload = cli.run(
+        ["set", "--profile", "ios17", "--latitude", "35.6812", "--longitude", "139.7671", "--startup-grace", "0.15"],
+        extra_env=extra,
+    )
+    assert started.returncode == 0, payload
+    assert payload["code"] == "SET_HOLDING"
+    pid_a = payload["details"]["pid"]
+
+    status = None
+    for _ in range(40):
+        time.sleep(0.1)
+        _proc, status = cli.run(["status"], extra_env=extra)
+        sessions = {item["udid"]: item for item in status["details"]["sessions"]}
+        item = sessions.get(UDID) or {}
+        if item.get("alive") and int(item.get("reconnect_count") or 0) >= 1:
+            break
+    else:
+        raise AssertionError(f"watchdog did not reconnect: {status}")
+
+    sessions = {item["udid"]: item for item in status["details"]["sessions"]}
+    item = sessions[UDID]
+    assert item["alive"] is True
+    assert item["watchdog_active"] is True
+    assert int(item["reconnect_count"]) >= 1
+    assert item["latitude"] == "35.6812"
+    assert item["longitude"] == "139.7671"
+    os.kill(pid_a, 0)
+
+    second, _ = cli.run(["select", "--udid", OTHER, "--transport", "usbmux"], extra_env=extra)
+    assert second.returncode == 0
+    set_b, payload = cli.run(
+        ["set", "--profile", "ios17", "--latitude", "40.7128", "--longitude", "-74.0060", "--startup-grace", "0.15"],
+        extra_env=extra,
+    )
+    assert set_b.returncode == 0, payload
+    assert payload["code"] == "SET_HOLDING"
+    pid_b = payload["details"]["pid"]
+    assert pid_a != pid_b
+    os.kill(pid_a, 0)
+    os.kill(pid_b, 0)
+
+    _proc, status = cli.run(["status"], extra_env=extra)
+    sessions = {item["udid"]: item for item in status["details"]["sessions"]}
+    assert sessions[UDID]["alive"] is True
+    assert int(sessions[UDID]["reconnect_count"]) >= 1
+    assert sessions[OTHER]["alive"] is True
+    assert int(sessions[OTHER].get("reconnect_count") or 0) == 0
+    assert sessions[OTHER]["latitude"] == "40.7128"
+
+    cleared, payload = cli.run(["clear", "--profile", "ios17"], extra_env=extra)
+    assert cleared.returncode == 0, payload
+    os.kill(pid_a, 0)
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid_b, 0)
+
+    before = int(crash.read_text(encoding="utf-8").strip())
+    time.sleep(0.4)
+    after = int(crash.read_text(encoding="utf-8").strip())
+    assert after == before
+
+    _proc, status = cli.run(["status"], extra_env=extra)
+    sessions = {item["udid"]: item for item in status["details"]["sessions"]}
+    assert UDID in sessions and sessions[UDID]["alive"] is True
+    assert OTHER not in sessions
+
+    cli.run(["select", "--udid", UDID, "--transport", "usbmux"], extra_env=extra)
+    stopped, payload = cli.run(["clear", "--profile", "ios17"], extra_env=extra)
+    assert stopped.returncode == 0, payload
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid_a, 0)
+    time.sleep(0.3)
+    final = int(crash.read_text(encoding="utf-8").strip())
+    assert final == after
+    _proc, status = cli.run(["status"], extra_env=extra)
+    sessions = {item["udid"]: item for item in status["details"]["sessions"]}
+    assert UDID not in sessions or sessions[UDID]["alive"] is False

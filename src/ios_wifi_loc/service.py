@@ -37,6 +37,36 @@ DEFAULT_PORT = 47321
 
 
 
+def _session_ui_fields(sess: dict | None) -> dict:
+    if not sess:
+        return {
+            "session_alive": False,
+            "holding": False,
+            "watchdog_active": False,
+            "waiting_reconnect": False,
+            "reconnect_count": 0,
+            "last_reconnect_at": None,
+            "last_error": None,
+        }
+    alive = bool(sess.get("alive"))
+    waiting = bool(sess.get("waiting_reconnect") or (sess.get("watchdog_active") and alive and not sess.get("holding")))
+    try:
+        reconnect_count = int(sess.get("reconnect_count") or 0)
+    except (TypeError, ValueError):
+        reconnect_count = 0
+    return {
+        "session_alive": alive,
+        "holding": bool(sess.get("holding")),
+        "watchdog_active": bool(sess.get("watchdog_active") and alive),
+        "waiting_reconnect": waiting,
+        "reconnect_count": reconnect_count,
+        "last_reconnect_at": sess.get("last_reconnect_at"),
+        "last_error": sess.get("last_error"),
+        "latitude": sess.get("latitude"),
+        "longitude": sess.get("longitude"),
+    }
+
+
 def _devices_with_sessions(devices: list, sessions: list) -> list[dict]:
     by_udid = {item.get("udid"): dict(item) for item in sessions if isinstance(item, dict) and item.get("udid")}
     result = []
@@ -46,35 +76,24 @@ def _devices_with_sessions(devices: list, sessions: list) -> list[dict]:
             continue
         item = dict(device)
         sess = by_udid.get(item["udid"])
-        if sess:
-            item["session_alive"] = bool(sess.get("alive"))
-            item["holding"] = bool(sess.get("holding") or sess.get("alive"))
-            item["latitude"] = sess.get("latitude")
-            item["longitude"] = sess.get("longitude")
-        else:
-            item.setdefault("session_alive", False)
-            item.setdefault("holding", False)
+        item.update(_session_ui_fields(sess))
         result.append(item)
         seen.add(item["udid"])
     for udid, sess in by_udid.items():
         if udid in seen:
             continue
-        result.append(
-            {
-                "udid": udid,
-                "name": None,
-                "connection": "wifi",
-                "transport": "mobdev2",
-                "source": "session",
-                "host": None,
-                "product_version": None,
-                "tunnel_ready": False,
-                "session_alive": bool(sess.get("alive")),
-                "holding": bool(sess.get("holding") or sess.get("alive")),
-                "latitude": sess.get("latitude"),
-                "longitude": sess.get("longitude"),
-            }
-        )
+        item = {
+            "udid": udid,
+            "name": None,
+            "connection": "wifi",
+            "transport": "mobdev2",
+            "source": "session",
+            "host": None,
+            "product_version": None,
+            "tunnel_ready": False,
+        }
+        item.update(_session_ui_fields(sess))
+        result.append(item)
     return result
 
 

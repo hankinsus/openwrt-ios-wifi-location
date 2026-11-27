@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import signal
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -146,14 +148,13 @@ def _read_tail(path: Path) -> str:
 
 
 def _remember(store: StateStore, outcome: Outcome) -> Outcome:
-    data = store.load()
-    data["last_command"] = {
-        "accepted": outcome.ok and outcome.code in {"SET_HOLDING", "SET_RETURNED", "CLEARED"},
-        "code": outcome.code,
-        "summary": outcome.summary,
-        "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    }
-    store.save(data)
+    with store.transaction() as data:
+        data["last_command"] = {
+            "accepted": outcome.ok and outcome.code in {"SET_HOLDING", "SET_RETURNED", "CLEARED"},
+            "code": outcome.code,
+            "summary": outcome.summary,
+            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
     return outcome
 
 
@@ -221,9 +222,18 @@ def _release_stale_holder(store: StateStore, data: dict) -> dict:
         pid = int(session["pid"])
         if holder_matches(pid):
             continue
+        child = session.get("child_pid")
+        if isinstance(child, int) and child > 1 and pid_alive(child):
+            try:
+                os.kill(child, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         session = dict(session)
         session["pid"] = None
+        session["child_pid"] = None
         session["holding"] = False
+        session["watchdog_active"] = False
+        session["waiting_reconnect"] = False
         session["ended_reason"] = "not_running" if not pid_alive(pid) else "cmdline_mismatch"
         sessions[udid] = session
         changed = True
@@ -343,9 +353,27 @@ def _apply_location(
             "上游 set 已返回 0。按上游说明，iOS 17 以下的设置会保持到 clear。这里没有手机可以证明坐标已经生效。",
             {"profile": "pre17", "latitude": lat, "longitude": lon, "udid": target.udid},
         )
+    from ios_wifi_loc.watchdog import clear_stop, hold_command_argv
+
     log_out, log_err = _session_logs(store, target.udid)
+    safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in target.udid)
+    hold_out = store.directory / f"hold.{safe}.stdout"
+    hold_err = store.directory / f"hold.{safe}.stderr"
+    clear_stop(store, target.udid)
+    use_tunnel = "--tunnel" in argv
+    hold_argv = hold_command_argv(
+        sys.executable,
+        store,
+        binary,
+        target,
+        lat,
+        lon,
+        command_profile,
+        grace,
+        use_tunnel=use_tunnel,
+    )
     try:
-        proc = spawn(argv, stdout_path=log_out, stderr_path=log_err)
+        proc = spawn(hold_argv, stdout_path=hold_out, stderr_path=hold_err)
     except FileNotFoundError:
         return _fail("BINARY_MISSING", 7, "找不到上游可执行文件")
     except OSError as exc:
@@ -354,8 +382,8 @@ def _apply_location(
     while time.monotonic() < deadline and proc.poll() is None:
         time.sleep(0.05)
     if proc.poll() is not None:
-        tail = _read_tail(log_err)
-        if proc.returncode == 0:
+        tail = _read_tail(log_err) or _read_tail(hold_err)
+        if proc.returncode in {0, 4}:
             return _fail(
                 "SESSION_ENDED_EARLY",
                 4,
@@ -363,26 +391,45 @@ def _apply_location(
                 stderr=tail,
             )
         return _fail("UPSTREAM_FAILED", 4, f"上游 set 失败，退出码 {proc.returncode}。", stderr=tail)
-    record = {
-        "pid": proc.pid,
-        "profile": "ios17",
-        "udid": target.udid,
-        "latitude": lat,
-        "longitude": lon,
-        "argv": argv[1:],
-        "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "holding": True,
-    }
-    data = store.load()
-    _put_session(data, target.udid, record)
-    store.save(data)
+    with store.transaction() as data:
+        current = _session_for(data, target.udid) or {}
+        try:
+            reconnect_count = int(current.get("reconnect_count") or 0)
+        except (TypeError, ValueError):
+            reconnect_count = 0
+        record = {
+            "pid": proc.pid,
+            "watchdog_pid": proc.pid,
+            "child_pid": current.get("child_pid"),
+            "profile": "ios17",
+            "udid": target.udid,
+            "latitude": lat,
+            "longitude": lon,
+            "argv": argv[1:],
+            "started_at": current.get("started_at") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "holding": True,
+            "watchdog_active": True,
+            "reconnect_count": reconnect_count,
+            "last_reconnect_at": current.get("last_reconnect_at"),
+            "last_error": current.get("last_error"),
+            "waiting_reconnect": bool(current.get("waiting_reconnect")),
+        }
+        _put_session(data, target.udid, record)
     if not foreground:
         return Outcome(
             True,
             "SET_HOLDING",
             0,
-            "上游 set 进程仍在运行。这只说明本机进程还在；按上游文档，iOS 17+ 的模拟由该进程保持。手机是否接受坐标需要真机确认。其它已在模拟的手机不会被打断。",
-            {"pid": proc.pid, "profile": "ios17", "latitude": lat, "longitude": lon, "udid": target.udid},
+            "上游 set 进程仍在运行。这只说明本机进程还在；按上游文档，iOS 17+ 的模拟由该进程保持。手机是否接受坐标需要真机确认。其它已在模拟的手机不会被打断。自动重连已开启，隧道断开后会按原坐标重新发起。",
+            {
+                "pid": proc.pid,
+                "profile": "ios17",
+                "latitude": lat,
+                "longitude": lon,
+                "udid": target.udid,
+                "watchdog_active": True,
+                "reconnect_count": reconnect_count,
+            },
         )
     return _wait_foreground(store, binary, proc, timeout, allow_usb)
 
@@ -468,12 +515,35 @@ def _clear_location(
     data = _release_stale_holder(store, data)
     session = _session_for(data, udid) if udid else (data.get("session") or None)
     holder = None
-    if session and session.get("pid"):
-        holder = interrupt_holder(int(session["pid"]), wait_s=min(timeout, 5))
+    if udid:
+        from ios_wifi_loc.watchdog import request_stop
+
+        request_stop(store, udid)
+    pids = []
+    if session:
+        for key in ("pid", "watchdog_pid", "child_pid"):
+            value = session.get(key)
+            if isinstance(value, int) and value > 1 and value not in pids:
+                pids.append(value)
+    if pids:
+        holder = interrupt_holder(pids[0], wait_s=min(timeout, 5))
+        for extra in pids[1:]:
+            if not pid_alive(extra):
+                continue
+            try:
+                os.killpg(extra, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, OSError):
+                try:
+                    os.kill(extra, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
         if holder.get("exited") and udid:
             session = dict(session)
             session["pid"] = None
+            session["child_pid"] = None
             session["holding"] = False
+            session["watchdog_active"] = False
+            session["waiting_reconnect"] = False
             _put_session(data, udid, session)
             store.save(data)
     chosen = profile or (session or {}).get("profile")
@@ -541,6 +611,12 @@ def _public_sessions(data: dict) -> list[dict]:
         item["udid"] = udid
         item["alive"] = bool(session.get("pid") and holder_matches(int(session["pid"])))
         item["session_alive"] = item["alive"]
+        item["watchdog_active"] = bool(session.get("watchdog_active") and item["alive"])
+        try:
+            item["reconnect_count"] = int(session.get("reconnect_count") or 0)
+        except (TypeError, ValueError):
+            item["reconnect_count"] = 0
+        item["waiting_reconnect"] = bool(session.get("waiting_reconnect") or (item["watchdog_active"] and not session.get("holding")))
         items.append(item)
     return items
 

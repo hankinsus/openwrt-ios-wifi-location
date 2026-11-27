@@ -69,6 +69,32 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .footer-version { font-size:12px; color:var(--gray); margin-bottom:8px; font-family:ui-monospace,Menlo,monospace; font-weight:700; }
 .bad { color:var(--red); font-size:13px; margin-top:8px; }
 #map-fallback { display:none; padding:24px 16px; text-align:center; color:var(--gray); font-size:13px; }
+.btn, .presets button, .layer-btn, .copy-btn, .fav-item .fav-del {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .08s ease, opacity .12s ease, box-shadow .12s ease, background .15s ease, filter .12s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08);
+}
+.btn:active:not(:disabled), .presets button:active, .layer-btn:active, .copy-btn:active {
+  transform: scale(0.97);
+  opacity: .88;
+  box-shadow: 0 0 0 0 rgba(0,0,0,0);
+  filter: brightness(0.96);
+}
+.btn.busy { opacity:.9; }
+.spinner { display:inline-block; width:12px; height:12px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .6s linear infinite; margin-right:6px; vertical-align:-2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.toast.toast-ok { background:rgba(52,199,89,.95); color:#fff; }
+.toast.toast-bad { background:rgba(255,59,48,.95); color:#fff; }
+.device-bar-wrap { padding-bottom:8px; margin-bottom:0; }
+.device-select { font-size:16px; padding:12px 14px; margin-top:0; font-weight:500; background:#fff; }
+.device-status { margin-top:8px; font-size:13px; line-height:1.5; min-height:1.5em; }
+.device-status .badge { margin-right:6px; }
+.pair-steps { display:flex; flex-direction:column; gap:10px; margin:10px 0; }
+.pair-step { background:var(--bg); border-radius:10px; padding:12px; }
+.pair-step-h { display:flex; align-items:flex-start; gap:8px; font-size:13px; line-height:1.55; }
+.step-no { flex:none; width:22px; height:22px; border-radius:50%; background:var(--blue); color:#fff; font-size:12px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; margin-top:1px; }
+.pair-step .pair-cmds { margin-top:8px; user-select:all; }
+.copy-btn { flex:none; min-width:auto; margin-left:auto; }
 </style>
 </head>
 <body>
@@ -82,6 +108,32 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
   </div>
 </div>
 <div id="app" hidden>
+  <div class="panel device-bar-wrap">
+    <div class="card" style="margin-bottom:0">
+      <div class="fav-header">
+        <h3 style="margin-bottom:0">选择设备</h3>
+        <button class="btn btn-sm btn-secondary" id="discover" type="button">重新扫描</button>
+      </div>
+      <select id="device-select" class="field device-select" aria-label="选择设备"></select>
+      <div id="device-status" class="device-status"></div>
+      <div id="tunneld-line" class="notice" style="text-align:left;margin:8px 0 0 0"></div>
+      <details id="manual-device">
+        <summary>高级 / 手动添加</summary>
+        <p class="notice" style="text-align:left;margin:8px 0 0 0">传输类型、主机和标识仅在设备未被自动发现时需要手动填写。</p>
+        <div id="devices" class="device-list" style="margin-top:8px"></div>
+        <label>传输
+          <select id="transport" class="field">
+            <option value="mobdev2">mobdev2（无线）</option>
+            <option value="usbmux">usbmux 网络</option>
+            <option value="remotepairing">remotepairing</option>
+          </select>
+        </label>
+        <label>标识 <input id="udid" class="field" type="text" autocomplete="off"></label>
+        <label>主机（可选，支持 IPv6 如 fe80::1%br-lan） <input id="host" class="field" type="text" autocomplete="off"></label>
+        <div class="row"><button class="btn btn-primary" id="choose" type="button">选择此设备</button></div>
+      </details>
+    </div>
+  </div>
   <div style="position:relative">
     <div id="map"></div>
     <div id="map-fallback">地图组件未能加载，仍可手动输入或粘贴坐标。</div>
@@ -95,28 +147,6 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
     </div>
   </div>
   <div class="panel">
-    <div class="card">
-      <div class="fav-header">
-        <h3>设备自动发现</h3>
-        <button class="btn btn-sm btn-secondary" id="discover" type="button">重新扫描</button>
-      </div>
-      <div id="tunneld-line" class="notice" style="text-align:left;margin:0 0 8px 0"></div>
-      <div id="devices" class="device-list"></div>
-      <details id="manual-device">
-        <summary>手动输入标识</summary>
-        <label>传输
-          <select id="transport" class="field">
-            <option value="mobdev2">mobdev2（无线）</option>
-            <option value="usbmux">usbmux 网络</option>
-            <option value="remotepairing">remotepairing</option>
-          </select>
-        </label>
-        <label>标识 <input id="udid" class="field" type="text" autocomplete="off"></label>
-        <label>主机（可选，支持 IPv6 如 fe80::1%br-lan） <input id="host" class="field" type="text" autocomplete="off"></label>
-        <div class="row"><button class="btn btn-primary" id="choose" type="button">选择此设备</button></div>
-      </details>
-    </div>
-
     <div class="card">
       <h3>选择目标位置</h3>
       <div class="coords" id="coords">经度 139.767100  纬度 35.681200</div>
@@ -172,24 +202,42 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
       <h3>配对管理（一键导入 .plist）</h3>
       <p class="notice" id="pair-status" style="text-align:left">正在读取配对状态…</p>
       <div id="pair-files"></div>
-      <div class="drop" id="drop">将 &lt;UDID&gt;.plist 和 SystemConfiguration.plist 拖到这里，或点击选择文件</div>
+      <div class="pair-steps">
+        <div class="pair-step">
+          <div class="pair-step-h">
+            <span class="step-no">1</span>
+            <span>安装 Apple Devices / iTunes，手机暂时关闭密码。用 PowerShell 一键装工具并开启开发者模式：</span>
+            <button type="button" class="btn btn-sm btn-secondary copy-btn" data-copy-target="pair-cmd-1">复制</button>
+          </div>
+          <pre class="pair-cmds" id="pair-cmd-1">python -m pip install pymobiledevice3==11.63.1
+pymobiledevice3 lockdown pair
+pymobiledevice3 amfi enable-developer-mode</pre>
+        </div>
+        <div class="pair-step">
+          <div class="pair-step-h">
+            <span class="step-no">2</span>
+            <span>配对并开启 Wi-Fi 连接：</span>
+            <button type="button" class="btn btn-sm btn-secondary copy-btn" data-copy-target="pair-cmd-2">复制</button>
+          </div>
+          <pre class="pair-cmds" id="pair-cmd-2">pymobiledevice3 lockdown pair
+pymobiledevice3 lockdown wifi-connections on</pre>
+        </div>
+        <div class="pair-step">
+          <div class="pair-step-h">
+            <span class="step-no">3</span>
+            <span>直接在下面点「选择 .plist 文件」，上传 <code>C:\ProgramData\Apple\Lockdown\</code> 里的 &lt;UDID&gt;.plist 和 SystemConfiguration.plist（免 Xftp，自动持久化到 <code>/etc/ios-wifi-loc/lockdown</code>）。</span>
+          </div>
+          <p class="notice" style="text-align:left;margin:8px 0 0 0">macOS 路径是 /var/db/lockdown/。只需配对一次，之后可在同一局域网无线使用。</p>
+        </div>
+      </div>
+      <div class="drop" id="drop">将 &lt;UDID&gt;.plist 和 SystemConfiguration.plist 拖到这里，或点击「选择 .plist 文件」</div>
       <input id="plist-files" type="file" accept=".plist,application/x-plist,application/xml" multiple hidden>
-      <div class="row"><button class="btn btn-primary" id="import-plist" type="button">导入选中的文件</button></div>
-      <details>
-        <summary>在电脑上生成配对文件（只需一次）</summary>
-        <div class="pair-cmds" id="guide">pymobiledevice3 lockdown pair
-pymobiledevice3 lockdown wifi-connections on
-
-Windows: C:\\ProgramData\\Apple\\Lockdown\\
-macOS: /var/db/lockdown/
-
-把对应的 &lt;UDID&gt;.plist 和 SystemConfiguration.plist 导入即可，不用再通过 SCP 拷到路由器。</div>
-      </details>
+      <div class="row"><button class="btn btn-primary" id="import-plist" type="button">选择 .plist 文件</button></div>
     </div>
 
     <div class="footer-card">
       <div class="footer-brand">OpenWrt 无线虚拟定位</div>
-      <div class="footer-version">v0.3.0</div>
+      <div class="footer-version">v0.3.1</div>
       <p class="notice">仅供受信局域网使用。请勿把 47321 端口暴露到公网。</p>
     </div>
     <div class="status" id="status">在地图上选好位置后点击「设置定位」，然后在手机地图确认</div>
@@ -230,11 +278,98 @@ let map = null, marker = null, currentLayer = null, tiles = null, layerName = "s
 let lastPayload = {};
 let pendingFiles = [];
 
-function toast(msg, ms) {
+function toast(msg, ms, kind) {
   const t = $("toast");
   t.textContent = msg;
-  t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), ms || 2500);
+  t.className = "toast show" + (kind === "ok" ? " toast-ok" : kind === "bad" ? " toast-bad" : "");
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { t.className = "toast"; }, ms || 2500);
+}
+async function withBusy(btn, busyLabel, work, doneLabel) {
+  if (!btn) return work();
+  const original = btn.dataset.label || btn.textContent;
+  const originalClass = btn.dataset.cls || btn.className;
+  btn.dataset.label = original;
+  btn.dataset.cls = originalClass;
+  btn.disabled = true;
+  btn.classList.add("busy");
+  btn.innerHTML = '<span class="spinner"></span>' + busyLabel;
+  try {
+    const result = await work();
+    if (doneLabel) {
+      btn.classList.remove("busy");
+      if (btn.className.indexOf("btn-danger") < 0) btn.classList.add("success");
+      btn.textContent = doneLabel;
+      setTimeout(() => { btn.textContent = original; btn.className = originalClass; btn.disabled = false; }, 2200);
+    } else {
+      btn.textContent = original;
+      btn.className = originalClass;
+      btn.disabled = false;
+    }
+    return result;
+  } catch (error) {
+    btn.textContent = original;
+    btn.className = originalClass;
+    btn.disabled = false;
+    throw error;
+  }
+}
+function deviceTitle(item) {
+  const name = item.name || "iPhone";
+  return name + (item.product_version ? (" (iOS " + item.product_version + ")") : "");
+}
+function deviceStatusText(item, tunneldReady) {
+  if (item.waiting_reconnect && item.watchdog_active) return "等待隧道恢复自动重连…";
+  if ((item.holding || item.session_alive) && item.watchdog_active) {
+    const n = item.reconnect_count || 0;
+    const loc = (item.latitude != null && item.longitude != null) ? (Number(item.latitude).toFixed(2) + ", " + Number(item.longitude).toFixed(2)) : "";
+    return "保持中（自动重连已开启，已重连 " + n + " 次）" + (loc ? " · " + loc : "");
+  }
+  if (item.holding || item.session_alive) {
+    if (item.latitude != null) return "模拟中 " + Number(item.latitude).toFixed(2) + ", " + Number(item.longitude).toFixed(2);
+    return "模拟中";
+  }
+  if (item.tunnel_ready) return "隧道就绪";
+  return tunneldReady ? "等待连接" : "等待隧道";
+}
+function paintDeviceSelect(data) {
+  const sel = $("device-select");
+  if (!sel) return;
+  const devices = data.devices || [];
+  const selectedId = (data.selected && data.selected.udid) || "";
+  const ready = !!(data.tunneld && data.tunneld.reachable);
+  sel.replaceChildren();
+  if (!devices.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "未发现设备，请先导入配对文件或重新扫描";
+    sel.appendChild(opt);
+  } else {
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "请选择一台 iPhone";
+    sel.appendChild(placeholder);
+    devices.forEach((item) => {
+      const opt = document.createElement("option");
+      opt.value = item.udid;
+      opt.textContent = deviceTitle(item) + " · " + deviceStatusText(item, ready);
+      sel.appendChild(opt);
+    });
+  }
+  sel.value = selectedId;
+  const current = devices.find((d) => d.udid === selectedId);
+  const box = $("device-status");
+  box.replaceChildren();
+  if (current) {
+    const badge = document.createElement("span");
+    const waiting = current.waiting_reconnect && current.watchdog_active;
+    const holding = current.holding || current.session_alive;
+    badge.className = "badge " + (waiting ? "badge-wait" : (holding || current.tunnel_ready ? "badge-on" : (ready ? "badge-wait" : "badge-off")));
+    badge.textContent = deviceStatusText(current, ready);
+    box.appendChild(badge);
+  } else if (devices.length) {
+    box.textContent = "请从上方列表选择一台已发现的 iPhone";
+  }
 }
 function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -362,6 +497,7 @@ function paint(data) {
   lastPayload = data || {};
   const tunneld = data.tunneld || {};
   const ready = !!tunneld.reachable;
+  paintDeviceSelect(data);
   $("tunneld-line").textContent = ready
     ? ("tunneld 已运行，发现 " + ((tunneld.tunnels || []).length) + " 条无线隧道")
     : "tunneld 未运行。iOS 17+ 无线定位需要它，安装后应由系统服务自动拉起。";
@@ -394,13 +530,11 @@ function paint(data) {
     info.appendChild(name);
     info.appendChild(meta);
     const badge = document.createElement("span");
-    if (item.holding || item.session_alive) {
-      badge.className = "badge badge-on";
-      badge.textContent = (item.latitude != null) ? ("模拟中 " + Number(item.latitude).toFixed(4) + ", " + Number(item.longitude).toFixed(4)) : "模拟中";
-    } else {
-      badge.className = "badge " + (item.tunnel_ready ? "badge-on" : (ready ? "badge-wait" : "badge-off"));
-      badge.textContent = item.tunnel_ready ? "隧道已就绪" : "等待连接";
-    }
+    const statusText = deviceStatusText(item, ready);
+    if (item.waiting_reconnect && item.watchdog_active) badge.className = "badge badge-wait";
+    else if (item.holding || item.session_alive || item.tunnel_ready) badge.className = "badge badge-on";
+    else badge.className = "badge " + (ready ? "badge-wait" : "badge-off");
+    badge.textContent = statusText === "隧道就绪" ? "隧道已就绪" : statusText;
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "btn btn-sm btn-primary";
@@ -414,8 +548,15 @@ function paint(data) {
   if (data.selected && data.selected.udid) $("udid").value = data.selected.udid;
   if (data.selected && data.selected.transport) $("transport").value = data.selected.transport;
   if (data.selected && data.selected.host) $("host").value = data.selected.host;
-  $("command-line").textContent = (data.command_accepted ? "上游已接受最近一次命令" : "尚未接受，或上次没有成功")
+  const sess = data.session || {};
+  let cmdLine = (data.command_accepted ? "上游已接受最近一次命令" : "尚未接受，或上次没有成功")
     + "；会话进程" + (data.session_alive ? "仍在本机运行" : "没有在运行");
+  if (sess.watchdog_active && data.session_alive) {
+    cmdLine += sess.waiting_reconnect
+      ? "；等待隧道恢复自动重连…"
+      : "；自动重连已开启，已重连 " + (sess.reconnect_count || 0) + " 次";
+  }
+  $("command-line").textContent = cmdLine;
   $("phone-line").textContent = "未能确认。进程还在不能代表手机坐标，请在苹果地图查看蓝点。";
   $("summary").textContent = data.summary || "";
   $("status").textContent = data.summary || "在地图上选好位置后点击「设置定位」，然后在手机地图确认";
@@ -494,10 +635,12 @@ function paint(data) {
 async function refresh() { paint(await api("/api/status")); }
 async function scan() {
   $("action-error").textContent = "";
-  $("discover").disabled = true;
-  try { paint(await api("/api/discover", {method:"POST", body:"{}"})); toast("扫描完成"); }
-  catch (error) { $("action-error").textContent = error.message; toast(error.message); }
-  finally { $("discover").disabled = false; }
+  try {
+    await withBusy($("discover"), "扫描中...", async () => {
+      paint(await api("/api/discover", {method:"POST", body:"{}"}));
+      toast("扫描完成", 2500, "ok");
+    });
+  } catch (error) { $("action-error").textContent = error.message; toast(error.message, 3500, "bad"); }
 }
 async function chooseDevice(item) {
   $("action-error").textContent = "";
@@ -517,23 +660,24 @@ async function setLocation(immediate) {
   $("action-error").textContent = "";
   if (!(lastPayload.selected && lastPayload.selected.udid)) { toast("请先选择设备"); return; }
   const btn = $("start");
-  btn.disabled = true; btn.textContent = "设置中…";
   try {
-    const data = await api("/api/location/start", {method:"POST", body: JSON.stringify({latitude: String(lat), longitude: String(lon), profile: profileFor(), confirm: true})});
-    paint(data);
-    if (data.session_alive || data.command_accepted) {
-      btn.textContent = "✓ 已发送";
-      btn.className = "btn btn-primary success";
-      toast("本机模拟进程运行中，请在手机地图确认");
-      setTimeout(() => { btn.textContent = "设置定位"; btn.className = "btn btn-primary"; btn.disabled = false; }, 2500);
-    } else {
-      btn.textContent = "设置定位"; btn.disabled = false;
-      toast(data.summary || "已发送");
+    let ok = false;
+    await withBusy(btn, "设置中...", async () => {
+      const data = await api("/api/location/start", {method:"POST", body: JSON.stringify({latitude: String(lat), longitude: String(lon), profile: profileFor(), confirm: true})});
+      paint(data);
+      ok = !!(data.session_alive || data.command_accepted);
+      if (ok) toast("✅ 已下发定位，请在手机地图确认", 3000, "ok");
+      else toast(data.summary || "已发送", 3000);
+    }, null);
+    if (ok) {
+      btn.classList.add("success");
+      btn.textContent = "✅ 已下发定位";
+      const original = "设置定位";
+      setTimeout(() => { btn.textContent = original; btn.className = "btn btn-primary"; btn.disabled = false; }, 2200);
     }
   } catch (error) {
-    btn.textContent = "设置定位"; btn.disabled = false;
     $("action-error").textContent = error.message;
-    toast(error.message, 3500);
+    toast(error.message, 3500, "bad");
   }
 }
 
@@ -599,7 +743,6 @@ function showApp() {
 }
 async function afterLogin() {
   showApp();
-  try { const guide = await api("/api/guide"); if (guide.text) $("guide").textContent = guide.text; } catch (e) {}
   try { await refresh(); } catch (e) {}
   try { await scan(); } catch (e) {}
 }
@@ -622,16 +765,34 @@ $("choose").onclick = async () => {
 $("start").onclick = () => setLocation(false);
 $("clear").onclick = async () => {
   $("action-error").textContent = "";
-  try { paint(await api("/api/location/clear", {method:"POST", body: JSON.stringify({profile: profileFor(), confirm:true})})); toast("已请求恢复真实定位，请在手机上确认"); }
-  catch (error) { $("action-error").textContent = error.message; toast(error.message, 3500); }
+  try {
+    await withBusy($("clear"), "恢复中...", async () => {
+      paint(await api("/api/location/clear", {method:"POST", body: JSON.stringify({profile: profileFor(), confirm:true})}));
+      toast("✅ 已恢复真实定位，请在手机上确认", 3000, "ok");
+    }, "✅ 已恢复真实定位");
+  } catch (error) { $("action-error").textContent = error.message; toast(error.message, 3500, "bad"); }
 };
-$("locate").onclick = () => {
+$("locate").onclick = async () => {
+  if (!window.isSecureContext) {
+    toast("浏览器仅在 HTTPS 下允许获取本机 GPS，请直接在地图点选或搜索地点", 4000);
+    return;
+  }
   if (!navigator.geolocation) return toast("浏览器不支持定位");
-  navigator.geolocation.getCurrentPosition(
-    (pos) => moveTo(pos.coords.latitude, pos.coords.longitude, 16),
-    (err) => toast("定位失败: " + err.message, 3000),
-    {enableHighAccuracy:true, timeout:10000}
-  );
+  try {
+    await withBusy($("locate"), "定位中...", () => new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => { moveTo(pos.coords.latitude, pos.coords.longitude, 16); toast("✅ 已定位到当前位置", 2500, "ok"); resolve(); },
+        (err) => {
+          const raw = (err && err.message) || "";
+          const insecure = /secure origin/i.test(raw) || err && err.code === 1 && !window.isSecureContext;
+          reject(new Error(insecure
+            ? "浏览器仅在 HTTPS 下允许获取本机 GPS，请直接在地图点选或搜索地点"
+            : "无法获取当前位置，请直接在地图点选或搜索地点"));
+        },
+        {enableHighAccuracy:true, timeout:10000}
+      );
+    }));
+  } catch (error) { toast(error.message, 4000, "bad"); }
 };
 $("add-fav").onclick = () => {
   $("favModalCoords").textContent = lon.toFixed(6) + ", " + lat.toFixed(6);
@@ -671,11 +832,34 @@ $("search").onclick = searchPlace;
 $("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter") searchPlace(); });
 $("urlInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("parse-url").click(); });
 $("drop").onclick = () => $("plist-files").click();
-$("plist-files").onchange = (e) => readPlistFiles(e.target.files);
+$("plist-files").onchange = async (e) => {
+  readPlistFiles(e.target.files);
+  if (pendingFiles.length) {
+    try {
+      await withBusy($("import-plist"), "导入中...", async () => { await importPlists(); });
+    } catch (error) { toast(error.message, 3500, "bad"); }
+  }
+};
 ["dragenter","dragover"].forEach((name) => $("drop").addEventListener(name, (e) => { e.preventDefault(); $("drop").classList.add("drag"); }));
 ["dragleave","drop"].forEach((name) => $("drop").addEventListener(name, (e) => { e.preventDefault(); $("drop").classList.remove("drag"); }));
 $("drop").addEventListener("drop", (e) => readPlistFiles(e.dataTransfer.files));
-$("import-plist").onclick = importPlists;
+$("import-plist").onclick = () => $("plist-files").click();
+$("device-select").onchange = () => {
+  const udid = $("device-select").value;
+  if (!udid) return;
+  const item = (lastPayload.devices || []).find((d) => d.udid === udid);
+  if (item) chooseDevice(item);
+};
+document.querySelectorAll("[data-copy-target]").forEach((btn) => {
+  btn.onclick = async () => {
+    const target = $(btn.getAttribute("data-copy-target"));
+    const value = target ? target.textContent : "";
+    try {
+      await navigator.clipboard.writeText(value);
+      toast("已复制到剪贴板", 2000, "ok");
+    } catch (e) { toast("复制失败，请手动选择命令", 2500, "bad"); }
+  };
+});
 $("login-btn").onclick = async () => {
   $("login-error").textContent = "";
   try {

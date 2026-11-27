@@ -109,6 +109,26 @@ def _set() -> int:
     signal.signal(signal.SIGINT, _stop)
     signal.signal(signal.SIGTERM, _stop)
     print("holding", flush=True)
+    crash_times = int(os.environ.get("IOS_WIFI_LOC_FAKE_CRASH_TIMES", "0") or "0")
+    crash_after = float(os.environ.get("IOS_WIFI_LOC_FAKE_CRASH_AFTER", "0") or "0")
+    counter = os.environ.get("IOS_WIFI_LOC_FAKE_CRASH_COUNTER")
+    should_crash = False
+    if crash_times > 0 and counter:
+        path = Path(counter)
+        try:
+            used = int(path.read_text(encoding="utf-8").strip() or "0")
+        except (OSError, ValueError):
+            used = 0
+        used += 1
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(str(used), encoding="utf-8")
+        should_crash = used <= crash_times
+    if should_crash:
+        deadline = time.monotonic() + max(0.0, crash_after)
+        while time.monotonic() < deadline:
+            time.sleep(0.02)
+        print("DTX reader exiting with error: [Errno 101] Network unreachable", file=sys.stderr, flush=True)
+        return 101
     while True:
         time.sleep(0.05)
 

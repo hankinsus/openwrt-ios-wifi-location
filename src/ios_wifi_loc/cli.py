@@ -109,6 +109,17 @@ def _parser() -> argparse.ArgumentParser:
     smoke_cmd.add_argument("--longitude", required=True)
     smoke_cmd.add_argument("--execute", action="store_true")
     smoke_cmd.add_argument("--i-understand-this-sets-a-real-device", action="store_true")
+
+    hold = sub.add_parser("_hold", help=argparse.SUPPRESS)
+    hold.add_argument("--udid", required=True)
+    hold.add_argument("--transport", choices=["usbmux", "mobdev2", "remotepairing"], default="mobdev2")
+    hold.add_argument("--host", default=None)
+    hold.add_argument("--usbmux-address", default=None)
+    hold.add_argument("--profile", choices=["pre17", "ios17"], default="ios17")
+    hold.add_argument("--latitude", required=True)
+    hold.add_argument("--longitude", required=True)
+    hold.add_argument("--startup-grace", type=float, default=5)
+    hold.add_argument("--use-tunnel", action="store_true")
     return parser
 
 
@@ -251,6 +262,10 @@ def main(argv: list[str] | None = None) -> int:
             state_dir = Path(args.state_dir) if args.state_dir else default_state_dir_for_root(Path(args.root))
             report = uninstall_files(Path(args.root), state_dir=state_dir, purge_state=args.purge_state)
             outcome = Outcome(True, "UNINSTALLED", 0, "已删除启动脚本。", report)
+        elif args.cmd == "_hold":
+            from ios_wifi_loc.watchdog import run_hold
+
+            return run_hold(store, args)
         elif args.cmd == "smoke":
             outcome = smoke(
                 store,
