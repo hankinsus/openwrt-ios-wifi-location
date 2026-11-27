@@ -418,6 +418,63 @@ def _sync_legacy_session(data: dict) -> None:
     data["session"] = sessions.get(udid) if udid else data.get("session")
 
 
+GENERIC_DEVICE_NAMES = {"iphone", "ipad", "ipod", "ipod touch", "apple"}
+
+
+def is_generic_device_name(name: object) -> bool:
+    text = str(name or "").strip()
+    return (not text) or text.casefold() in GENERIC_DEVICE_NAMES
+
+
+def preferred_device_name(*candidates: object) -> str | None:
+    specific: list[str] = []
+    generic: list[str] = []
+    for raw in candidates:
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        if is_generic_device_name(text):
+            if text not in generic:
+                generic.append(text)
+        elif text not in specific:
+            specific.append(text)
+    if specific:
+        return specific[0]
+    return generic[0] if generic else None
+
+
+def preferred_product_version(*candidates: object) -> str | None:
+    for raw in candidates:
+        text = str(raw or "").strip()
+        if text:
+            return text
+    return None
+
+
+def apply_device_metadata(item: dict, names: dict | None = None, *extra_sources: object) -> dict:
+    """Fill name / iOS version from cache and related records without inventing data."""
+    out = dict(item)
+    udid = out.get("udid")
+    cached = (names or {}).get(udid) if isinstance(names, dict) and udid else None
+    cached = cached if isinstance(cached, dict) else {}
+    name_candidates = [out.get("name"), out.get("device_name"), cached.get("name")]
+    version_candidates = [out.get("product_version"), out.get("ios_version"), cached.get("product_version")]
+    for source in extra_sources:
+        if not isinstance(source, dict):
+            continue
+        if source.get("udid") and udid and source.get("udid") != udid:
+            continue
+        name_candidates.append(source.get("name") or source.get("device_name"))
+        version_candidates.append(source.get("product_version") or source.get("ios_version"))
+    name = preferred_device_name(*name_candidates)
+    if name:
+        out["name"] = name
+    version = preferred_product_version(*version_candidates)
+    if version:
+        out["product_version"] = version
+    return out
+
+
 def _device_names_map(data: dict) -> dict:
     names = data.get("device_names")
     if not isinstance(names, dict):
@@ -439,10 +496,16 @@ def remember_device_metadata(data: dict, *sources: object) -> dict:
                 continue
             udid = item["udid"]
             entry = dict(names.get(udid) or {})
-            name = item.get("name") or item.get("device_name")
-            version = item.get("product_version")
-            if name:
-                entry["name"] = name
+            incoming = item.get("name") or item.get("device_name")
+            if incoming:
+                # A later generic "iPhone" from tunneld must not erase a saved friendly name.
+                if not is_generic_device_name(incoming):
+                    entry["name"] = preferred_device_name(incoming, entry.get("name")) or incoming
+                else:
+                    kept = preferred_device_name(entry.get("name"), incoming)
+                    if kept:
+                        entry["name"] = kept
+            version = item.get("product_version") or item.get("ios_version")
             if version:
                 entry["product_version"] = version
             if entry:

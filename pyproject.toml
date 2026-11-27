@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ios-wifi-loc"
-version = "0.4.3"
+version = "0.4.4"
 description = "Linux-side controller for iPhone Wi-Fi developer location simulation via pymobiledevice3."
 readme = "README.md"
 requires-python = ">=3.9"

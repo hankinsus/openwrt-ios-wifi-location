@@ -25,6 +25,7 @@ from ios_wifi_loc.pairing import (
     list_pairing,
 )
 from ios_wifi_loc.session import (
+    apply_device_metadata,
     clear_location,
     list_enabled_desired_targets,
     reconnect,
@@ -41,6 +42,9 @@ from ios_wifi_loc.web_page import render_page
 from ios_wifi_loc.windows_pair import ToolError, render_windows_pair_bat, server_base_from_host
 
 DEFAULT_PORT = 19443
+
+DEFAULT_SHORTCUT_SET_ICLOUD_URL = "https://www.icloud.com/shortcuts/cf3227b48a8f484283069a087727f861"
+DEFAULT_SHORTCUT_CLEAR_ICLOUD_URL = "https://www.icloud.com/shortcuts/395385a36be94384a85480d7459d1fa1"
 
 
 
@@ -141,8 +145,8 @@ def shortcut_settings(data: dict | None = None) -> dict:
     stored = settings.get("shortcuts") if isinstance(settings.get("shortcuts"), dict) else {}
     env_set = (os.environ.get("IOS_WIFI_LOC_SHORTCUT_SET_URL") or "").strip()
     env_clear = (os.environ.get("IOS_WIFI_LOC_SHORTCUT_CLEAR_URL") or "").strip()
-    set_url = env_set or stored.get("set_icloud_url") or ""
-    clear_url = env_clear or stored.get("clear_icloud_url") or ""
+    set_url = env_set or stored.get("set_icloud_url") or DEFAULT_SHORTCUT_SET_ICLOUD_URL
+    clear_url = env_clear or stored.get("clear_icloud_url") or DEFAULT_SHORTCUT_CLEAR_ICLOUD_URL
     return {
         "set_icloud_url": set_url,
         "clear_icloud_url": clear_url,
@@ -287,14 +291,19 @@ class Console:
         data = dict(current.details)
         data["summary"] = current.summary
         state = self.store.load()
-        data["devices"] = _devices_with_sessions(
+        names = state.get("device_names") or {}
+        selected = data.get("selected") if isinstance(data.get("selected"), dict) else {}
+        devices = _devices_with_sessions(
             state.get("discovery") or [],
             data.get("sessions") or [],
             data.get("desired_targets") or list_enabled_desired_targets(state),
         )
+        data["devices"] = [apply_device_metadata(item, names, selected) for item in devices]
+        if selected.get("udid"):
+            data["selected"] = apply_device_metadata(selected, names)
         data["desired_targets"] = data.get("desired_targets") or list_enabled_desired_targets(state)
         data["pairing"] = enrich_pairing(list_pairing(self.store.directory, runtime_dir=runtime_lockdown_dir()), state)
-        data["device_names"] = state.get("device_names") or {}
+        data["device_names"] = names
         data["settings"] = {"shortcuts": shortcut_settings(state)}
         data["require_auth"] = self.require_auth
         if extra:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ios_wifi_loc.windows_pair import WINDOWS_PAIR_STEP1_PS, WINDOWS_PAIR_STEP2_PS
+
 PAGE = r"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -11,14 +13,15 @@ PAGE = r"""<!DOCTYPE html>
 <style>
 :root { --blue:#007aff; --green:#34c759; --red:#ff3b30; --gray:#8e8e93; --bg:#f2f2f7; --text:#1c1c1e; }
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:-apple-system,system-ui,sans-serif; background:var(--bg); color:var(--text); }
+html { -webkit-text-size-adjust:100%; }
+body { font-family:-apple-system,system-ui,sans-serif; background:var(--bg); color:var(--text); overflow-x:hidden; }
 #map { height:50vh; width:100%; min-height:250px; background:#d8d8dc; }
-.panel { padding:16px; max-width:600px; margin:0 auto 30px auto; }
-.card { background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+.panel { padding:16px; max-width:600px; width:100%; margin:0 auto 30px auto; }
+.card { background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); overflow:hidden; }
 .card h3 { font-size:15px; font-weight:600; margin-bottom:10px; }
 .coords { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:14px; color:#333; padding:8px 12px; background:var(--bg); border-radius:8px; word-break:break-all; }
 .row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
-.btn { flex:1; min-width:100px; padding:12px 16px; border:none; border-radius:10px; font-size:14px; font-weight:500; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; text-align:center; color:#fff; }
+.btn { flex:1; min-width:0; padding:12px 16px; border:none; border-radius:10px; font-size:14px; font-weight:500; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; text-align:center; color:#fff; }
 .btn:disabled { opacity:.6; cursor:default; }
 .btn-primary { background:var(--blue); }
 .btn-secondary { background:#e5e5ea; color:#333; }
@@ -26,8 +29,8 @@ body { font-family:-apple-system,system-ui,sans-serif; background:var(--bg); col
 .btn.success { background:var(--green); }
 .btn-sm { flex:none; min-width:auto; padding:6px 12px; font-size:12px; border-radius:8px; }
 .section-title { font-size:14px; font-weight:600; color:var(--text); margin:16px 0 8px 0; }
-.input-row { display:flex; gap:8px; margin-top:10px; }
-.input-row input, .field { flex:1; padding:10px 12px; border:1px solid #d1d1d6; border-radius:8px; font-size:14px; outline:none; width:100%; }
+.input-row { display:flex; gap:8px; margin-top:10px; min-width:0; }
+.input-row input, .field { flex:1; min-width:0; padding:10px 12px; border:1px solid #d1d1d6; border-radius:8px; font-size:14px; outline:none; width:100%; }
 label { display:block; font-size:13px; color:#3a3a3c; margin-top:8px; }
 .status { font-size:12px; color:var(--gray); margin-top:8px; text-align:center; }
 .notice { font-size:12px; color:var(--gray); text-align:center; line-height:1.5; margin-top:8px; }
@@ -45,7 +48,8 @@ label { display:block; font-size:13px; color:#3a3a3c; margin-top:8px; }
 .fav-item .fav-info, .device-card .fav-info { flex:1; min-width:0; }
 .fav-item .fav-name, .device-card .fav-name { font-size:14px; font-weight:500; color:#333; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .fav-item .fav-coords, .device-card .fav-coords { font-size:11px; color:#8e8e93; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-top:2px; word-break:break-all; }
-.fav-item .fav-del { flex:none; width:28px; height:28px; border:none; border-radius:50%; background:transparent; color:var(--red); font-size:16px; cursor:pointer; }
+.fav-del { flex:none; width:28px; height:28px; border:1px solid #e5e5ea; border-radius:50%; background:#f2f2f7; color:#dc2626; font-size:16px; font-weight:700; cursor:pointer; line-height:1; box-shadow:0 1px 2px rgba(0,0,0,.08); display:inline-flex; align-items:center; justify-content:center; padding:0; }
+.fav-del:hover { background:#ececef; color:#b91c1c; border-color:#d1d1d6; }
 .fav-empty { text-align:center; color:var(--gray); font-size:13px; padding:16px 0; }
 .fav-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
 .badge { display:inline-flex; align-items:center; font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; }
@@ -56,9 +60,11 @@ label { display:block; font-size:13px; color:#3a3a3c; margin-top:8px; }
 .presets button { border:none; background:#e5e5ea; color:#333; border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer; }
 .drop { margin-top:10px; border:1px dashed #c7c7cc; border-radius:10px; padding:16px; text-align:center; color:var(--gray); font-size:13px; background:#fafafa; }
 .drop.drag { border-color:var(--blue); background:#e8f1ff; color:var(--blue); }
-.pair-cmds { background:var(--bg); border-radius:8px; padding:10px 12px; font-size:12px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; margin-top:8px; color:#333; }
+.pair-cmds { background:var(--bg); border-radius:8px; padding:10px 12px; font-size:12px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; margin-top:8px; color:#333; max-width:100%; }
 details { margin-top:8px; }
 details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
+.pair-manual { margin-top:14px; }
+.pair-manual summary { font-weight:600; font-size:14px; color:var(--text); padding:4px 0; }
 .modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.4); z-index:10000; display:none; align-items:center; justify-content:center; padding:20px; }
 .modal-overlay.show { display:flex; }
 .modal { background:#fff; border-radius:16px; padding:20px; width:100%; max-width:340px; }
@@ -69,12 +75,12 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .footer-version { font-size:12px; color:var(--gray); margin-bottom:8px; font-family:ui-monospace,Menlo,monospace; font-weight:700; }
 .bad { color:var(--red); font-size:13px; margin-top:8px; }
 #map-fallback { display:none; padding:24px 16px; text-align:center; color:var(--gray); font-size:13px; }
-.btn, .presets button, .layer-btn, .copy-btn, .fav-item .fav-del {
+.btn, .presets button, .layer-btn, .copy-btn, .fav-del {
   -webkit-tap-highlight-color: transparent;
   transition: transform .08s ease, opacity .12s ease, box-shadow .12s ease, background .15s ease, filter .12s ease;
   box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
-.btn:active:not(:disabled), .presets button:active, .layer-btn:active, .copy-btn:active {
+.btn:active:not(:disabled), .presets button:active, .layer-btn:active, .copy-btn:active, .fav-del:active {
   transform: scale(0.97);
   opacity: .88;
   box-shadow: 0 0 0 0 rgba(0,0,0,0);
@@ -96,17 +102,37 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .pair-step .pair-cmds { margin-top:8px; user-select:all; }
 .copy-btn { flex:none; min-width:auto; margin-left:auto; }
 
-.device-info { margin-top:10px; background:#e8f1ff; border:1px solid var(--blue); border-radius:10px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px 12px; flex-wrap:wrap; }
-.device-info-main { flex:1; min-width:0; }
-.device-info-title { font-size:15px; font-weight:600; line-height:1.3; }
-.device-info-meta { font-size:11px; color:#3a3a3c; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-top:3px; word-break:break-all; }
-.device-info-pills { display:flex; align-items:center; gap:6px; flex-shrink:0; flex-wrap:wrap; }
-.device-info .device-status { margin-top:0; min-height:0; font-size:inherit; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-.device-info .device-status .badge { margin-right:0; }
-.badge-pick { background:var(--blue); color:#fff; }
+.device-info { margin-top:10px; background:#e8f1ff; border:1px solid var(--blue); border-radius:10px; padding:10px 12px; display:flex; align-items:flex-start; justify-content:space-between; gap:8px 12px; flex-wrap:wrap; min-width:0; }
+.device-info-main { flex:1 1 12rem; min-width:0; }
+.device-info-title { font-size:15px; font-weight:600; line-height:1.35; overflow-wrap:anywhere; word-break:break-word; }
+.device-info-meta { font-size:11px; color:#3a3a3c; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-top:3px; overflow-wrap:anywhere; word-break:break-all; }
+.device-info-pills { display:flex; align-items:flex-start; justify-content:flex-end; gap:6px; flex:1 1 10rem; min-width:0; max-width:100%; flex-wrap:wrap; }
+.device-info .device-status { margin-top:0; min-height:0; font-size:inherit; display:flex; align-items:flex-start; gap:6px; flex-wrap:wrap; max-width:100%; }
+.device-info .device-status .badge { margin-right:0; white-space:normal; overflow-wrap:anywhere; word-break:break-word; max-width:100%; line-height:1.35; }
+.badge-pick { background:var(--blue); color:#fff; flex-shrink:0; }
 @media (max-width:420px) {
-  .device-info { align-items:flex-start; }
-  .device-info-pills { width:100%; }
+  .device-info { align-items:flex-start; flex-direction:column; }
+  .device-info-pills { width:100%; justify-content:flex-start; flex:1 1 auto; }
+}
+@media (max-width:600px) {
+  .panel { padding:12px; margin-bottom:20px; }
+  #map { height:42vh; min-height:220px; }
+  .btn { min-height:44px; }
+  .btn-sm { min-height:36px; }
+  .device-select { width:100%; }
+  .device-info { flex-direction:column; align-items:stretch; }
+  .device-info-main, .device-info-pills { flex:1 1 auto; width:100%; }
+  .device-info-pills { justify-content:flex-start; }
+  .layer-switch { max-width:calc(100% - 16px); }
+  .row .btn, .shortcut-install .btn { flex:1 1 calc(50% - 8px); }
+}
+@media (min-width:601px) and (max-width:1024px) {
+  .panel { max-width:760px; padding:20px; }
+  #map { height:48vh; min-height:320px; }
+}
+@media (min-width:1025px) {
+  .panel { max-width:820px; padding:24px; }
+  #map { height:52vh; min-height:360px; }
 }
 .pair-group { background:var(--bg); border-radius:10px; padding:12px; margin-bottom:8px; }
 .pair-group-head { font-size:14px; font-weight:600; margin-bottom:8px; }
@@ -114,9 +140,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .pair-file + .pair-file { border-top:1px solid #e5e5ea; }
 .pair-file-name { flex:1; min-width:0; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; word-break:break-all; }
 .pair-file .badge { flex:none; }
-.pair-file .fav-del { flex:none; width:24px; height:24px; border:none; background:transparent; color:#8e8e93; font-size:18px; cursor:pointer; line-height:1; }
-.shortcut-install { margin:0 0 12px 0; }
-.shortcut-json { font-size:12px; user-select:all; white-space:pre-wrap; word-break:break-all; }
+.shortcut-install { margin:0 0 10px 0; }
 .map-wrap { position:relative; }
 </style>
 </head>
@@ -216,114 +240,60 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
     </div>
     <div class="card">
       <h3>iOS 快捷指令 &amp; 地图分享</h3>
-      <div class="shortcut-install">
-        <p class="notice" style="text-align:left;margin:0 0 10px 0">Apple 从 iOS 15 起要求已签名的 iCloud 分享链接（<code>https://www.icloud.com/shortcuts/…</code>）才能一键安装。本页不提供无法打开的未签名 <code>.shortcut</code> 文件。把你自己签好并分享的链接保存到下面后，即可点蓝色按钮一键安装。</p>
-        <div class="row" id="shortcut-install-buttons" style="margin-top:0"></div>
-        <div class="active-loc">
-          <div class="label">一键定位 / 地图分享快捷指令（iCloud 链接）</div>
-          <div class="input-row">
-            <input id="shortcut-set-icloud" placeholder="https://www.icloud.com/shortcuts/…">
-            <button type="button" class="btn btn-sm btn-secondary" id="save-shortcut-set-icloud" style="flex:none">保存</button>
-          </div>
-        </div>
-        <div class="active-loc">
-          <div class="label">一键恢复真实定位快捷指令（iCloud 链接）</div>
-          <div class="input-row">
-            <input id="shortcut-clear-icloud" placeholder="https://www.icloud.com/shortcuts/…">
-            <button type="button" class="btn btn-sm btn-secondary" id="save-shortcut-clear-icloud" style="flex:none">保存</button>
-          </div>
-        </div>
-        <div class="active-loc">
-          <div class="label">快捷指令配置（复制到备忘录或发给自己）</div>
-          <pre class="pair-cmds shortcut-json" id="shortcut-config-json">正在生成…</pre>
-          <div class="row"><button type="button" class="btn btn-sm btn-secondary" id="copy-shortcut-config">复制配置 JSON</button></div>
-        </div>
+      <p class="notice" style="text-align:left;margin:0 0 10px 0">在 iPhone 上安装下面两个快捷指令后，可用「分享」把高德 / 苹果 / Google / 百度地图链接直接发给本机定位，或一键恢复真实定位。</p>
+      <div class="row shortcut-install" style="margin-top:0">
+        <a class="btn btn-primary" href="https://www.icloud.com/shortcuts/cf3227b48a8f484283069a087727f861" target="_blank" rel="noopener noreferrer">一键安装：地图分享定位</a>
+        <a class="btn btn-primary" href="https://www.icloud.com/shortcuts/395385a36be94384a85480d7459d1fa1" target="_blank" rel="noopener noreferrer">一键安装：恢复真实定位</a>
       </div>
-      <p class="notice" style="text-align:left;margin:0 0 10px 0">三种方式设置定位，都走本机路由，不经过外部定位服务：</p>
-      <div class="pair-steps">
-        <div class="pair-step">
-          <div class="pair-step-h"><span class="step-no">1</span><span>在本页地图选点、搜索或点城市预设，再点「设置定位」。</span></div>
-        </div>
-        <div class="pair-step">
-          <div class="pair-step-h"><span class="step-no">2</span><span>用 iOS「快捷指令」一键设置或恢复定位（下面给出可复制的接口地址）。</span></div>
-        </div>
-        <div class="pair-step">
-          <div class="pair-step-h"><span class="step-no">3</span><span>在「高德地图 / 苹果地图 / Google 地图 / 百度地图」里点分享，把链接交给快捷指令，本机自动解析并改定位。</span></div>
-        </div>
-      </div>
-      <div class="active-loc">
-        <div class="label">设置定位接口</div>
-        <div class="value" id="shortcut-set-url">正在生成…</div>
-        <div class="row"><button type="button" class="btn btn-sm btn-secondary" id="copy-shortcut-set">复制</button></div>
-      </div>
-      <div class="active-loc">
-        <div class="label">恢复真实定位接口</div>
-        <div class="value" id="shortcut-clear-url">正在生成…</div>
-        <div class="row"><button type="button" class="btn btn-sm btn-secondary" id="copy-shortcut-clear">复制</button></div>
-      </div>
-      <div class="active-loc">
-        <div class="label">查看状态接口</div>
-        <div class="value" id="shortcut-status-url">正在生成…</div>
-        <div class="row"><button type="button" class="btn btn-sm btn-secondary" id="copy-shortcut-status">复制</button></div>
-      </div>
-      <div class="section-title">常用地点一键链接</div>
-      <div id="shortcut-presets" class="pair-cmds" style="user-select:all"></div>
-      <details open>
-        <summary>在 iPhone 上创建快捷指令（推荐，兼容 iOS 17+）</summary>
-        <div class="pair-steps">
-          <div class="pair-step">
-            <div class="pair-step-h"><span class="step-no">1</span><span>打开「快捷指令」，新建快捷指令，打开「在分享表单中显示」，类型勾选「网址」和「文本」。</span></div>
-          </div>
-          <div class="pair-step">
-            <div class="pair-step-h"><span class="step-no">2</span><span>添加「获取 URL 内容」。URL 用「URL」动作拼接：接口地址 + 经过「URL 编码」的「快捷指令输入」。设置定位用下面这个地址（把分享来的地图链接接到 <code>text=</code> 后面）：</span></div>
-            <pre class="pair-cmds" id="shortcut-guide-set">正在生成…</pre>
-            <div class="row"><button type="button" class="btn btn-sm btn-secondary" id="copy-shortcut-guide">复制接口地址</button></div>
-          </div>
-          <div class="pair-step">
-            <div class="pair-step-h"><span class="step-no">3</span><span>再添加「显示通知」，内容用「获取 URL 内容」的返回文本。另建一个「恢复真实定位」快捷指令，URL 只用恢复接口，不必附加分享内容。Apple 从 iOS 15 起要求已签名的 <code>.shortcut</code> 文件才能直接导入，因此本页不提供无法打开的未签名文件；按上面 3 步创建最可靠。</span></div>
-          </div>
-        </div>
-        <p class="notice" id="shortcut-auth-note" style="text-align:left">若服务开了口令，请在 URL 后加上 <code>&amp;token=你的口令</code>。</p>
-      </details>
+      <p class="notice" style="text-align:left;margin:10px 0 0 0">安装后如路由器 IP 不是默认地址，在快捷指令里改成当前路由器地址即可。</p>
     </div>
 
     <div class="card">
       <h3>配对管理（一键导入 .plist）</h3>
       <p class="notice" id="pair-status" style="text-align:left">正在读取配对状态…</p>
       <div id="pair-files"></div>
-      <div class="pair-steps">
-        <div class="pair-step">
-          <div class="pair-step-h">
-            <span class="step-no">1</span>
-            <span>安装 Apple Devices / iTunes，手机暂时关闭密码。用 PowerShell 一键装工具并开启开发者模式：</span>
-            <button type="button" class="btn btn-sm btn-secondary copy-btn" data-copy-target="pair-cmd-1">复制</button>
-          </div>
-          <pre class="pair-cmds" id="pair-cmd-1">python -m pip install pymobiledevice3==11.63.1
-pymobiledevice3 lockdown pair
-pymobiledevice3 amfi enable-developer-mode</pre>
-        </div>
-        <div class="pair-step">
-          <div class="pair-step-h">
-            <span class="step-no">2</span>
-            <span>配对并开启 Wi-Fi 连接：</span>
-            <button type="button" class="btn btn-sm btn-secondary copy-btn" data-copy-target="pair-cmd-2">复制</button>
-          </div>
-          <pre class="pair-cmds" id="pair-cmd-2">pymobiledevice3 lockdown pair
-pymobiledevice3 lockdown wifi-connections on</pre>
-        </div>
-        <div class="pair-step">
-          <div class="pair-step-h">
-            <span class="step-no">3</span>
-            <span>直接在下面点「选择 .plist 文件」，上传 <code>C:\ProgramData\Apple\Lockdown\</code> 里的 &lt;UDID&gt;.plist 和 SystemConfiguration.plist（免 Xftp，自动持久化到 <code>/etc/ios-wifi-loc/lockdown</code>）。</span>
-          </div>
-          <p class="notice" style="text-align:left;margin:8px 0 0 0">macOS 路径是 /var/db/lockdown/。只需配对一次，之后可在同一局域网无线使用。</p>
-        </div>
+      <div class="row" style="margin-top:12px">
+        <a class="btn btn-primary" id="download-windows-pair" href="/api/tools/windows-pair.bat">下载 Windows 一键配对工具 (.bat)</a>
       </div>
-      <div class="drop" id="drop">将 &lt;UDID&gt;.plist 和 SystemConfiguration.plist 拖到这里，或点击「选择 .plist 文件」</div>
-      <input id="plist-files" type="file" accept=".plist,application/x-plist,application/xml" multiple hidden>
-      <div class="row">
-        <button class="btn btn-primary" id="import-plist" type="button">选择 .plist 文件</button>
-        <a class="btn btn-secondary" id="download-windows-pair" href="/api/tools/windows-pair.bat">下载 Windows 一键配对工具 (.bat)</a>
+      <p class="notice" style="text-align:left;margin:8px 0 0 0">双击运行即可自动检测/安装 Python、开启开发者模式、配对开启 Wi-Fi，并按当前网页地址自动上传 2 个 <code>.plist</code> 文件。</p>
+      <p class="notice" id="pair-auth-note" style="text-align:left;margin:8px 0 0 0">若服务开了口令，下载工具后请先设置环境变量 <code>IOS_WIFI_LOC_TOKEN</code> 为状态目录 <code>web.secret</code> 中的口令，再运行脚本。</p>
+      <details class="pair-manual">
+        <summary>展开手动配置与手动上传 (.plist)</summary>
+        <div class="pair-steps">
+          <div class="pair-step">
+            <div class="pair-step-h">
+              <span class="step-no">1</span>
+              <span>安装 Apple Devices / iTunes，手机暂时关闭密码。用 PowerShell 自动检测或安装 Python，再装工具并开启开发者模式：</span>
+              <button type="button" class="btn btn-sm btn-secondary copy-btn" data-copy-target="pair-cmd-1">复制</button>
+            </div>
+            <pre class="pair-cmds" id="pair-cmd-1">__PAIR_CMD_1__</pre>
+          </div>
+          <div class="pair-step">
+            <div class="pair-step-h">
+              <span class="step-no">2</span>
+              <span>配对、开启 Wi-Fi，并按当前网页地址自动上传最新的 &lt;UDID&gt;.plist 和 SystemConfiguration.plist：</span>
+              <button type="button" class="btn btn-sm btn-secondary copy-btn" data-copy-target="pair-cmd-2">复制</button>
+            </div>
+            <pre class="pair-cmds" id="pair-cmd-2">__PAIR_CMD_2__</pre>
+          </div>
+          <div class="pair-step">
+            <div class="pair-step-h">
+              <span class="step-no">3</span>
+              <span>如果上面的脚本已自动上传，直接刷新即可；否则可手动选择上传 <code>C:\ProgramData\Apple\Lockdown\</code> 里的 &lt;UDID&gt;.plist 和 SystemConfiguration.plist（免 Xftp，自动持久化到 <code>/etc/ios-wifi-loc/lockdown</code>）。</span>
+            </div>
+            <p class="notice" style="text-align:left;margin:8px 0 0 0">macOS 路径是 /var/db/lockdown/。只需配对一次，之后可在同一局域网无线使用。</p>
+          </div>
+        </div>
+        <div class="drop" id="drop">将 &lt;UDID&gt;.plist 和 SystemConfiguration.plist 拖到这里，或点击「选择 .plist 文件」</div>
+        <input id="plist-files" type="file" accept=".plist,application/x-plist,application/xml" multiple hidden>
+        <div class="row">
+          <button class="btn btn-secondary" id="import-plist" type="button">选择 .plist 文件</button>
+        </div>
+      </details>
+    </div>
+
+
+condary" id="download-windows-pair" href="/api/tools/windows-pair.bat">下载 Windows 一键配对工具 (.bat)</a>
       </div>
     </div>
 
@@ -343,7 +313,7 @@ pymobiledevice3 lockdown wifi-connections on</pre>
 
     <div class="footer-card">
       <div class="footer-brand">OpenWrt 无线虚拟定位</div>
-      <div class="footer-version">v0.4.3</div>
+      <div class="footer-version">v0.4.4</div>
       <p class="notice">仅供受信局域网使用。请勿把 19443 端口暴露到公网。</p>
     </div>
     <div class="status" id="status">在地图上选好位置后点击「设置定位」，然后在手机地图确认</div>
@@ -420,9 +390,34 @@ async function withBusy(btn, busyLabel, work, doneLabel) {
     throw error;
   }
 }
+function isGenericDeviceName(name) {
+  const text = String(name || "").trim();
+  return !text || ["iphone","ipad","ipod","ipod touch","apple"].indexOf(text.toLowerCase()) >= 0;
+}
+function deviceName(item) {
+  const names = (lastPayload.device_names || {});
+  const cached = (item && item.udid && names[item.udid]) || {};
+  const selected = (lastPayload.selected && item && lastPayload.selected.udid === item.udid) ? lastPayload.selected : {};
+  const picked = [item && item.name, item && item.device_name, cached.name, selected.name].filter((value) => value && !isGenericDeviceName(value));
+  if (picked.length) return picked[0];
+  const fallback = (item && (item.name || item.device_name)) || cached.name || selected.name;
+  return fallback || "iPhone";
+}
+function deviceVersion(item) {
+  const names = (lastPayload.device_names || {});
+  const cached = (item && item.udid && names[item.udid]) || {};
+  const selected = (lastPayload.selected && item && lastPayload.selected.udid === item.udid) ? lastPayload.selected : {};
+  return (item && (item.product_version || item.ios_version)) || cached.product_version || selected.product_version || "";
+}
 function deviceTitle(item) {
-  const name = item.name || "iPhone";
-  return name + (item.product_version ? (" (iOS " + item.product_version + ")") : "");
+  const name = deviceName(item);
+  const version = deviceVersion(item);
+  return version ? (name + " (iOS " + version + ")") : name;
+}
+function deviceCardTitle(item) {
+  const name = deviceName(item);
+  const version = deviceVersion(item);
+  return version ? (name + " · iOS " + version) : name;
 }
 function deviceStatusText(item, tunneldReady) {
   if (item.waiting_for_wifi && item.watchdog_active) return "等待 Wi-Fi / 隧道恢复后自动重连…";
@@ -470,9 +465,7 @@ function paintDeviceSelect(data) {
   box.replaceChildren();
   if (current) {
     if (info) info.hidden = false;
-    const name = current.name || "iPhone";
-    const title = name + (current.product_version ? (" iOS " + current.product_version) : "");
-    if ($("device-info-title")) $("device-info-title").textContent = title;
+    if ($("device-info-title")) $("device-info-title").textContent = deviceCardTitle(current);
     const bits = [];
     if (current.transport || current.connection) bits.push(current.transport || current.connection);
     bits.push(current.udid);
@@ -620,7 +613,6 @@ function switchLayer(name) {
 
 function paint(data) {
   lastPayload = data || {};
-  if (typeof fillShortcutUrls === "function") fillShortcutUrls();
   const tunneld = data.tunneld || {};
   const ready = !!tunneld.reachable;
   paintDeviceSelect(data);
@@ -752,7 +744,7 @@ async function chooseDevice(item) {
   $("action-error").textContent = "";
   const transport = item.transport || (item.connection === "usb" ? "usbmux" : "mobdev2");
   try {
-    paint(await api("/api/select", {method:"POST", body: JSON.stringify({udid: item.udid, transport, host: item.host || "", name: item.name || ""})}));
+    paint(await api("/api/select", {method:"POST", body: JSON.stringify({udid: item.udid, transport, host: item.host || "", name: deviceName(item)})}));
     toast("已选择 " + (item.name || item.udid));
   } catch (error) { $("action-error").textContent = error.message; toast(error.message); }
 }
@@ -896,74 +888,6 @@ CITIES.forEach((city) => {
   $("presets").appendChild(btn);
 });
 document.querySelectorAll(".layer-btn").forEach((b) => b.addEventListener("click", () => switchLayer(b.dataset.layer)));
-function pageOrigin() { return window.location.origin; }
-function shortcutTokenQuery() {
-  return NO_AUTH ? "" : "&token=";
-}
-function shortcutSetUrl(params) {
-  const query = new URLSearchParams(params || {});
-  query.set("format", "text");
-  let url = pageOrigin() + "/api/shortcut/set?" + query.toString();
-  if (!NO_AUTH && !query.has("token")) url += "&token=";
-  return url;
-}
-function fillShortcutUrls() {
-  const setUrl = pageOrigin() + "/api/shortcut/set?format=text&text=" + (NO_AUTH ? "" : "&token=");
-  const clearUrl = pageOrigin() + "/api/shortcut/clear?format=text" + (NO_AUTH ? "" : "&token=");
-  const statusUrl = pageOrigin() + "/api/shortcut/status?format=text" + (NO_AUTH ? "" : "&token=");
-  if ($("shortcut-set-url")) $("shortcut-set-url").textContent = setUrl;
-  if ($("shortcut-clear-url")) $("shortcut-clear-url").textContent = clearUrl;
-  if ($("shortcut-status-url")) $("shortcut-status-url").textContent = statusUrl;
-  if ($("shortcut-guide-set")) $("shortcut-guide-set").textContent = setUrl;
-  const box = $("shortcut-presets");
-  if (box) {
-    const lines = CITIES.map((city) => city.name + "  " + shortcutSetUrl({lat: String(city.lat), lon: String(city.lon)}));
-    const favs = lastPayload.favorites || [];
-    favs.forEach((item) => lines.push((item.name || "收藏") + "  " + shortcutSetUrl({lat: String(item.latitude), lon: String(item.longitude)})));
-    box.textContent = lines.join("\n");
-  }
-  if ($("shortcut-auth-note")) $("shortcut-auth-note").style.display = NO_AUTH ? "none" : "";
-  if ($("download-windows-pair")) $("download-windows-pair").href = "/api/tools/windows-pair.bat";
-  const links = (lastPayload.settings && lastPayload.settings.shortcuts) || {};
-  if ($("shortcut-set-icloud") && document.activeElement !== $("shortcut-set-icloud")) {
-    $("shortcut-set-icloud").value = links.set_icloud_url || "";
-  }
-  if ($("shortcut-clear-icloud") && document.activeElement !== $("shortcut-clear-icloud")) {
-    $("shortcut-clear-icloud").value = links.clear_icloud_url || "";
-  }
-  const install = $("shortcut-install-buttons");
-  if (install) {
-    install.replaceChildren();
-    function addInstall(url, label) {
-      if (!url) return;
-      const a = document.createElement("a");
-      a.className = "btn btn-primary";
-      a.href = url;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.textContent = label;
-      install.appendChild(a);
-    }
-    addInstall(links.set_icloud_url, "一键安装 iOS 快捷指令");
-    addInstall(links.clear_icloud_url, "一键安装恢复定位快捷指令");
-    if (!links.set_icloud_url && !links.clear_icloud_url) {
-      const hint = document.createElement("p");
-      hint.className = "notice";
-      hint.style.cssText = "text-align:left;margin:0;flex:1";
-      hint.textContent = "还没有保存 iCloud 分享链接。按下面步骤创建并分享后，把链接贴到输入框即可出现蓝色安装按钮。";
-      install.appendChild(hint);
-    }
-  }
-  if ($("shortcut-config-json")) {
-    $("shortcut-config-json").textContent = JSON.stringify({
-      set: setUrl,
-      clear: clearUrl,
-      status: statusUrl,
-      set_icloud: links.set_icloud_url || "",
-      clear_icloud: links.clear_icloud_url || ""
-    }, null, 2);
-  }
-}
 function copyText(text) {
   const value = String(text == null ? "" : text);
   const fallback = () => {
@@ -990,35 +914,6 @@ function copyText(text) {
   }
   return Promise.resolve(fallback() ? succeed() : fail());
 }
-function bindCopy(id, sourceId) {
-  const btn = $(id);
-  if (!btn) return;
-  btn.onclick = async () => {
-    const node = $(sourceId);
-    const value = node ? node.textContent : "";
-    await copyText(value);
-  };
-}
-fillShortcutUrls();
-bindCopy("copy-shortcut-set", "shortcut-set-url");
-bindCopy("copy-shortcut-clear", "shortcut-clear-url");
-bindCopy("copy-shortcut-status", "shortcut-status-url");
-bindCopy("copy-shortcut-guide", "shortcut-guide-set");
-bindCopy("copy-shortcut-config", "shortcut-config-json");
-async function saveShortcutLinks() {
-  try {
-    paint(await api("/api/settings", {method:"POST", body: JSON.stringify({
-      shortcuts: {
-        set_icloud_url: ($("shortcut-set-icloud") && $("shortcut-set-icloud").value) || "",
-        clear_icloud_url: ($("shortcut-clear-icloud") && $("shortcut-clear-icloud").value) || ""
-      }
-    })}));
-    fillShortcutUrls();
-    toast("已保存快捷指令链接", 2000, "ok");
-  } catch (error) { toast(error.message, 3500, "bad"); }
-}
-if ($("save-shortcut-set-icloud")) $("save-shortcut-set-icloud").onclick = saveShortcutLinks;
-if ($("save-shortcut-clear-icloud")) $("save-shortcut-clear-icloud").onclick = saveShortcutLinks;
 $("discover").onclick = scan;
 $("choose").onclick = async () => {
   try {
@@ -1113,6 +1008,18 @@ $("parse-url").onclick = () => {
 $("search").onclick = searchPlace;
 $("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter") searchPlace(); });
 $("urlInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("parse-url").click(); });
+function fillPairCommands() {
+  const node = $("pair-cmd-2");
+  if (node) {
+    if (!node.dataset.template) node.dataset.template = node.textContent;
+    let text = node.dataset.template.split("__SERVER_ORIGIN__").join(window.location.origin);
+    text = text.split("__PAIR_TOKEN__").join(NO_AUTH ? "" : "在这里填入口令");
+    node.textContent = text;
+  }
+  const note = $("pair-auth-note");
+  if (note) note.style.display = NO_AUTH ? "none" : "";
+}
+fillPairCommands();
 $("drop").onclick = () => $("plist-files").click();
 $("plist-files").onchange = async (e) => {
   readPlistFiles(e.target.files);
@@ -1164,4 +1071,9 @@ setInterval(() => { if (!$("app").hidden) refresh().catch(() => {}); }, 4000);
 
 
 def render_page(csrf: str, no_auth: bool = False) -> str:
-    return PAGE.replace("__CSRF__", csrf).replace("__NO_AUTH__", "true" if no_auth else "false")
+    return (
+        PAGE.replace("__CSRF__", csrf)
+        .replace("__NO_AUTH__", "true" if no_auth else "false")
+        .replace("__PAIR_CMD_1__", WINDOWS_PAIR_STEP1_PS)
+        .replace("__PAIR_CMD_2__", WINDOWS_PAIR_STEP2_PS)
+    )

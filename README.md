@@ -1,4 +1,4 @@
-# ios-wifi-loc 0.4.3
+# ios-wifi-loc 0.4.4
 
 在 R4S 或其它 OpenWrt / Debian / Ubuntu 机器上，**一条命令**完成下载、补齐环境和安装。升级同一条命令即可，会保留已有口令和配对文件：
 
@@ -67,6 +67,13 @@ v0.4.2 整理了网页布局：地图仍在最上方，设备下拉框下只保�
 
 v0.4.3 把选中设备卡片改成横向紧凑布局（左侧名称与标识，右侧状态与「已选择」徽章），并把坐标输入合并进「搜索地点」：可以搜地名，也可以直接输入 `35.6812, 139.7671` 跳转，少一个模块。
 
+v0.4.4 把两个已验证可用的 iOS 快捷指令做成网页一键安装按钮，并去掉下面繁琐的手动配置说明。安装后如路由器 IP 不是默认地址，在快捷指令里改成当前路由器地址即可：
+
+- 地图分享定位：<https://www.icloud.com/shortcuts/cf3227b48a8f484283069a087727f861>
+- 一键恢复真实定位：<https://www.icloud.com/shortcuts/395385a36be94384a85480d7459d1fa1>
+
+配对列表的删除按钮与「我的收藏」统一为圆形浅底红 ×。网页「配对管理」默认只显示已导入列表和醒目的「下载 Windows 一键配对工具」按钮：双击运行即可自动检测/安装 Python（兼容 `python` / `py`，跳过 WindowsApps 空壳占位符；没有时用 `winget` 安装 Python 3.12 并刷新 PATH），开启开发者模式、配对并打开 Wi-Fi，再按当前网页地址把最新的 `<UDID>.plist` 和 `SystemConfiguration.plist` 自动上传到本机 `/api/pairing/import`。手动 PowerShell 步骤和拖拽上传收在默认折叠的「展开手动配置与手动上传」里，作为兜底。设备下拉框和选中卡片都会显示完整的手机名称与 iOS 版本（例如 `iPhone17 PRO (iOS 27.2.1)`），发现结果只有泛泛的「iPhone」时会回填已保存或配对记录里的名称，避免把友好名称冲掉。页面同时适配手机、iPad 和电脑宽度：窄屏竖排不溢出，长 UDID / IPv6 会换行，按钮更好点。
+
 iPhone 本机精简版在 `ios-native/`，许可证是 AGPL-3.0，和这个 Python 控制台不是同一个程序。本机程序用免费 Apple ID 侧载，描述文件大约 7 天有效；付费开发者计划不是前提。这个 Python 控制台不在 R4S 上安装该 App，因此没有该 App 的 7 天签名。手机开发者模式是系统开关，不是会员。
 
 手机协议仍由上游 [pymobiledevice3](https://github.com/doronz88/pymobiledevice3) 执行。本工具不改路由、防火墙或 PassWall，不刷固件，也不使用 Apple ID。
@@ -104,6 +111,15 @@ pymobiledevice3 lockdown wifi-connections on
 配对文件通常在 Windows 的 `C:\ProgramData\Apple\Lockdown\` 或 macOS 的 `/var/db/lockdown/`。打开网页里的「配对管理」，把对应的 `<UDID>.plist` 和 `SystemConfiguration.plist` 拖进去即可，不用再通过 SCP 拷到路由器。多台手机就导入各自的 `<UDID>.plist`。
 
 网页不会代跑配对命令，也不会绕过手机上的信任提示。完成后拔掉数据线。手机和这台主机留在同一个局域网。
+
+## iOS 快捷指令
+
+网页「iOS 快捷指令 & 地图分享」提供两个一键安装按钮，也可以直接打开下面的 iCloud 链接：
+
+- 地图分享定位：<https://www.icloud.com/shortcuts/cf3227b48a8f484283069a087727f861>
+- 一键恢复真实定位：<https://www.icloud.com/shortcuts/395385a36be94384a85480d7459d1fa1>
+
+安装后如路由器 IP 不是默认地址，在快捷指令里改成当前路由器地址即可。接口仍是本机 `/api/shortcut/set` 和 `/api/shortcut/clear`，可解析高德 / 苹果 / 谷歌 / 百度分享链接或坐标。
 
 ## 日常使用
 

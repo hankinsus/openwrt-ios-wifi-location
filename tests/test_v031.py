@@ -8,14 +8,15 @@ from ios_wifi_loc.web_page import render_page
 
 
 def test_version_is_current():
-    assert __version__ == "0.4.3"
+    assert __version__ == "0.4.4"
 
 
 def test_web_page_device_dropdown_pairing_guide_and_button_feedback():
     html = render_page("csrf-token", no_auth=True)
     assert 'id="device-select"' in html
     assert "高级 / 手动添加" in html
-    assert "python -m pip install pymobiledevice3==11.63.1" in html
+    assert "pymobiledevice3==11.63.1" in html
+    assert "-m pip install" in html
     assert "pymobiledevice3 amfi enable-developer-mode" in html
     assert "pymobiledevice3 lockdown wifi-connections on" in html
     assert "选择 .plist 文件" in html
@@ -34,7 +35,7 @@ def test_web_page_device_dropdown_pairing_guide_and_button_feedback():
     assert "Only secure origins are allowed" not in html
     assert "保持中（自动重连已开启，已重连 " in html
     assert "等待隧道恢复自动重连…" in html
-    assert "v0.4.3" in html
+    assert "v0.4.4" in html
     assert "navigator.geolocation.getCurrentPosition" in html
 
 
