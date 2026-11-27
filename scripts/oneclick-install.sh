@@ -163,7 +163,7 @@ if [ "$ROOT" = "/" ] && [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-BASEPY=${IOS_WIFI_LOC_PYTHON:-$(command -v python3)}
+BASEPY=${IOS_WIFI_LOC_PYTHON:-$(command -v python3 || true)}
 if [ -z "$BASEPY" ]; then
     echo "还没有 python3，将先安装软件包。" >&2
 fi
@@ -187,7 +187,7 @@ pm_install() {
 echo "开始安装基础包。"
 pm_install "$BASE_PKGS"
 
-BASEPY=${IOS_WIFI_LOC_PYTHON:-$(command -v python3)}
+BASEPY=${IOS_WIFI_LOC_PYTHON:-$(command -v python3 || true)}
 if [ -z "$BASEPY" ] || [ ! -x "$BASEPY" ]; then
     echo "安装软件包后仍没有 python3。" >&2
     exit 1
@@ -236,13 +236,15 @@ EOF
 fi
 
 run_pip() {
+    subcmd=$1
+    shift
     # shellcheck disable=SC2086
     if [ -n "${IOS_WIFI_LOC_PIP:-}" ]; then
         # shellcheck disable=SC2086
-        "$IOS_WIFI_LOC_PIP" $TARGET_ARGS "$@"
+        "$IOS_WIFI_LOC_PIP" "$subcmd" $TARGET_ARGS "$@"
     else
         # shellcheck disable=SC2086
-        "$PIP_PY" -m pip $TARGET_ARGS "$@"
+        "$PIP_PY" -m pip "$subcmd" $TARGET_ARGS "$@"
     fi
 }
 
