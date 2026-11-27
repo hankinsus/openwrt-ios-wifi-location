@@ -61,8 +61,10 @@ label { display:block; font-size:13px; color:#3a3a3c; margin-top:8px; }
 .badge-on { background:#d8f5e2; color:#0b7a32; }
 .badge-off { background:#eee; color:#6e6e73; }
 .badge-wait { background:#fff3cd; color:#8a6d00; }
-.presets { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
-.presets button { border:none; background:#e5e5ea; color:#333; border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer; }
+.presets { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px; margin-top:10px; }
+.presets button { border:none; background:#e5e5ea; color:var(--text); border-radius:10px; padding:8px 12px; font-size:15px; font-weight:500; cursor:pointer; min-height:40px; line-height:1.2; white-space:nowrap; }
+.presets button:hover, .presets button:focus-visible { background:#d8d8de; }
+.presets button.is-selected { background:#e8f1ff; color:var(--blue); font-weight:600; }
 .drop { margin-top:10px; border:1px dashed #c7c7cc; border-radius:10px; padding:16px; text-align:center; color:var(--gray); font-size:13px; background:#fafafa; }
 .drop.drag { border-color:var(--blue); background:#e8f1ff; color:var(--blue); }
 .pair-cmds { background:var(--bg); border-radius:8px; padding:10px 12px; font-size:12px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; margin-top:8px; color:#333; max-width:100%; }
@@ -135,6 +137,10 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 }
 @media (max-width:1024px) {
   #map { height:36vh; min-height:280px; max-height:400px; }
+  .presets { gap:10px; }
+  .presets button { font-size:16px; min-height:44px; padding:10px 8px; }
+  .fav-item { min-height:44px; padding:12px; }
+  .fav-del { width:36px; height:36px; }
 }
 @media (max-width:600px) {
   #login-card { max-width:100%; padding:12px; }
@@ -908,7 +914,11 @@ CITIES.forEach((city) => {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.textContent = city.name;
-  btn.onclick = async () => { moveTo(city.lat, city.lon, 14); await setLocation(true); };
+  btn.onclick = async () => {
+    document.querySelectorAll("#presets button").forEach((item) => item.classList.toggle("is-selected", item === btn));
+    moveTo(city.lat, city.lon, 14);
+    await setLocation(true);
+  };
   $("presets").appendChild(btn);
 });
 document.querySelectorAll(".layer-btn").forEach((b) => b.addEventListener("click", () => switchLayer(b.dataset.layer)));
