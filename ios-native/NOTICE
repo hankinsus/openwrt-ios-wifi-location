@@ -1,0 +1,26 @@
+本目录是独立程序，不是上游产品的更名版。
+
+上游程序
+  仓库: https://github.com/StikDebug/StikDebug
+  提交: 63713ea2100660dc7066ee0e8d962858026f97aa
+  日期: 2026-11-20
+  许可证: GNU Affero General Public License v3.0
+  本目录保留该许可证全文，见 LICENSE。
+  2026-11-25 的修改保留定位、配对、隧道和开发者磁盘镜像所需的调用，
+  改成中文界面，去掉 JIT、脚本、进程控制、后台音频保活、图标和商标。
+  默认 Xcode 目标直接编译这些文件。
+
+设备库
+  https://github.com/jkcoxson/idevice
+  版本: 0.1.68 官方 XCFramework
+  许可证: MIT，全文见 third-party/idevice-MIT-LICENSE.txt
+  该提交附带的 libidevice_ffi.a 没有复制到这里。
+  scripts/fetch-idevice.sh 按 scripts/idevice.lock 的校验和下载同一份官方发布。
+  头文件与上游该提交中的 idevice.h 字节相同。
+
+签名不在本程序内完成。程序不收集 Apple ID 或密码。
+付费 Apple Developer Program 不是使用本程序的前置条件。
+
+本改编新增的界面和逻辑同样按 AGPL-3.0 提供，没有担保。
+同仓库里的 Python 控制台是另一个程序，许可证是 MIT，不并入本程序。
+它不安装这个 App。

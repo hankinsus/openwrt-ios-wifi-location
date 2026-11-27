@@ -1,0 +1,13 @@
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.mobiledevicepairing
+*.mobiledevicepair
+pairingFile.plist
+pairing/
+Vendor/idevice/.cache/
+Vendor/idevice/.fetched-sha256
+Vendor/idevice/include/idevice.h
+Vendor/idevice/iphoneos/
+Vendor/idevice/iphonesimulator/

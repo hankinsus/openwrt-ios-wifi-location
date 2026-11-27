@@ -1,0 +1,143 @@
+{
+  "ok": true,
+  "code": "DOCTOR",
+  "summary": "诊断完成。下面的结论只属于这台计算机，不是真机定位测试。",
+  "python": "3.12.3",
+  "system": "Linux",
+  "machine": "x86_64",
+  "mem_kb": 16387328,
+  "openwrt_release": null,
+  "usbmux_socket_present": false,
+  "interface_count": 2,
+  "interface_names": [
+    "docker0",
+    "enp0s3"
+  ],
+  "upstream_version": "11.63.1",
+  "upstream_version_returncode": 0,
+  "help": [
+    {
+      "argv": [
+        "developer",
+        "dvt",
+        "simulate-location",
+        "set",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "markers_missing": []
+    },
+    {
+      "argv": [
+        "developer",
+        "simulate-location",
+        "set",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "markers_missing": []
+    },
+    {
+      "argv": [
+        "developer",
+        "dvt",
+        "simulate-location",
+        "clear",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "markers_missing": []
+    },
+    {
+      "argv": [
+        "usbmux",
+        "list",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "markers_missing": []
+    },
+    {
+      "argv": [
+        "bonjour",
+        "mobdev2",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "markers_missing": []
+    },
+    {
+      "argv": [
+        "remote",
+        "browse",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "markers_missing": []
+    },
+    {
+      "argv": [
+        "remote",
+        "pair-host",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "markers_missing": []
+    },
+    {
+      "argv": [
+        "lockdown",
+        "info",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "markers_missing": []
+    },
+    {
+      "argv": [
+        "lockdown",
+        "wifi-connections",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "markers_missing": []
+    },
+    {
+      "argv": [
+        "lockdown",
+        "remotepairing",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "markers_missing": []
+    }
+  ],
+  "grade": {
+    "openwrt": {
+      "level": "not_observed",
+      "promised": false,
+      "note": "本机没有 /etc/openwrt_release。不能据此声称 OpenWrt 可以运行本工具或 pymobiledevice3。"
+    },
+    "low_memory": null,
+    "machine": "x86_64",
+    "aarch64_same_as_r4s_cpu_class": false,
+    "xe300_128mb_mips": {
+      "verdict": "not_promised",
+      "note": "没有在 128MB、MIPS 的 GL.iNet XE300 上安装或运行。不承诺单机能运行。"
+    },
+    "physical_iphone": {
+      "verdict": "not_attached",
+      "note": "环境诊断不连接手机，也不能把命令帮助存在解释成定位模拟成功。"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+                                                                                
+ Usage: pymobiledevice3 remote browse [OPTIONS]                                 
+                                                                                
+ List iOS 17+ devices reachable for tunneling.                                  
+                                                                                
+ Asks Apple's remotepairingd on macOS by default, browses bonjour elsewhere.    
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --timeout                     <float>  Browse timeout (in seconds)           │
+│                                        [default: 3]                          │
+│ --native       --no-native    <bool>   Browse via Apple's remotepairingd     │
+│                                        (the remoted tunnel daemon) instead   │
+│                                        of bonjour; no root, macOS only, and  │
+│                                        the default there unless              │
+│                                        PYMOBILEDEVICE3_DEFAULT_FALLBACK=tun… │
+│                                        --no-native forces the bonjour        │
+│                                        browse.                               │
+│ --help     -h                 <bool>   Show this message and exit.           │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+

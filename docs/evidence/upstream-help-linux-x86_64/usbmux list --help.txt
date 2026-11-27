@@ -1,0 +1,18 @@
+                                                                                
+ Usage: pymobiledevice3 usbmux list [OPTIONS]                                   
+                                                                                
+ List devices known to usbmuxd (USB and Wi-Fi).                                 
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --usbmux           <str>   Address of the usbmuxd daemon (unix socket path   │
+│                            or HOST:PORT). Defaults to the platform usbmuxd   │
+│                            if omitted.                                       │
+│                            [env var: PYMOBILEDEVICE3_USBMUX,                 │
+│                            USBMUXD_SOCKET_ADDRESS]                           │
+│ --usb      -u      <bool>  Show only USB devices.                            │
+│ --network  -n      <bool>  Show only network (Wi-Fi) devices.                │
+│ --simple           <bool>  List only UDIDs without connecting to lockdownd.  │
+│ --help     -h      <bool>  Show this message and exit.                       │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+

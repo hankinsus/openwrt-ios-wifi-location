@@ -1,0 +1,24 @@
+                                                                                
+ Usage: pymobiledevice3 remote pair-host [OPTIONS]                              
+                                                                                
+ Advertise as a pairable host and accept a device-initiated pairing (iOS 27+).  
+                                                                                
+ The device does not browse for pairable hosts automatically. On the device,    
+ enable Developer Mode and open Settings > Developer > Paired Macs; this host   
+ then appears under "Other Devices". Tap it and enter the 6-digit code          
+ printed here. The resulting pairing record is reused by                        
+ `remote start-tunnel` afterwards. Waits until paired, --timeout, or Ctrl+C.    
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --name             <str>    Name shown on the device (defaults to this       │
+│                             machine's hostname)                              │
+│ --model            <str>    Hardware model identifier shown on the device    │
+│                             [default: Mac17,7]                               │
+│ --port             <int>    TCP port to listen on (0 = pick a free port)     │
+│                             [default: 0]                                     │
+│ --timeout          <float>  Give up after this many seconds if no device     │
+│                             starts pairing                                   │
+│ --help     -h      <bool>   Show this message and exit.                      │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+

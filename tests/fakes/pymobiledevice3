@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""Test double for pymobiledevice3. It records argv and never talks to a phone."""
+
+from __future__ import annotations
+
+import json
+import os
+import signal
+import sys
+import time
+from pathlib import Path
+
+HELP = "\n".join(
+    [
+        "latitude",
+        "longitude",
+        "--udid",
+        "--remotepairing",
+        "--mobdev2",
+        "--mobdev2-host",
+        "--network",
+        "--simple",
+        "--timeout",
+        "--pair",
+        "wifi-connections",
+        "pair-host",
+        "simulate-location",
+    ]
+)
+
+
+def main() -> int:
+    argv = sys.argv[1:]
+    log = os.environ.get("IOS_WIFI_LOC_FAKE_LOG")
+    if log:
+        with open(log, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(argv, ensure_ascii=False) + "\n")
+    mode = os.environ.get("IOS_WIFI_LOC_FAKE_MODE", "ok")
+    if "--help" in argv or "-h" in argv:
+        print(HELP)
+        return 0
+    if argv[:1] == ["version"] or argv[:1] == ["--version"]:
+        print("11.63.1")
+        return 0
+    if mode == "timeout":
+        time.sleep(30)
+        return 0
+    if mode == "fail":
+        print("upstream refused the command", file=sys.stderr)
+        return 7
+    if "list" in argv and "usbmux" in argv:
+        return _list(argv)
+    if "info" in argv and "lockdown" in argv:
+        print(os.environ.get("IOS_WIFI_LOC_FAKE_INFO", '{"ProductVersion": "18.2.1"}'))
+        return 0
+    if "simulate-location" in argv and "set" in argv:
+        return _set()
+    if "simulate-location" in argv and "clear" in argv:
+        code = int(os.environ.get("IOS_WIFI_LOC_FAKE_CLEAR_CODE", "0"))
+        if code == 0:
+            print("cleared")
+        else:
+            print("clear failed", file=sys.stderr)
+        return code
+    if "mobdev2" in argv or "browse" in argv:
+        print(os.environ.get("IOS_WIFI_LOC_FAKE_BROWSE", "browsed"))
+        return 0
+    print("unhandled " + json.dumps(argv), file=sys.stderr)
+    return 99
+
+
+def _list(argv: list[str]) -> int:
+    if os.environ.get("IOS_WIFI_LOC_FAKE_MODE") == "not-json":
+        print("this is not json")
+        return 0
+    devices = json.loads(os.environ.get("IOS_WIFI_LOC_FAKE_DEVICES", "[]"))
+    if "--usb" in argv:
+        print("[]")
+        return 0
+    empty_budget = int(os.environ.get("IOS_WIFI_LOC_FAKE_EMPTY_LISTS", "0"))
+    counter = os.environ.get("IOS_WIFI_LOC_FAKE_COUNTER")
+    seen = 0
+    if counter:
+        path = Path(counter)
+        if path.exists():
+            seen = int(path.read_text(encoding="utf-8") or "0")
+        path.write_text(str(seen + 1), encoding="utf-8")
+    if "--network" in argv and seen < empty_budget:
+        print("[]")
+        return 0
+    print(json.dumps(devices))
+    return 0
+
+
+def _set() -> int:
+    mode = os.environ.get("IOS_WIFI_LOC_FAKE_MODE", "ok")
+    if mode == "set-fail":
+        print("Developer Mode is off", file=sys.stderr)
+        return 1
+    if mode == "set-short-ok":
+        print("set applied")
+        return 0
+    if mode == "set-early-ok":
+        return 0
+
+    def _stop(_signum: int, _frame: object) -> None:
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGINT, _stop)
+    signal.signal(signal.SIGTERM, _stop)
+    print("holding", flush=True)
+    while True:
+        time.sleep(0.05)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

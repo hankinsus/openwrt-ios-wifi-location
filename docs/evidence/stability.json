@@ -1,0 +1,14 @@
+{
+  "duration_requested_s": 60,
+  "actual_elapsed_s": 60.092,
+  "samples": 31,
+  "requests_ok": 30,
+  "rss_kib_start": 23492.0,
+  "rss_kib_end": 23556.0,
+  "rss_kib_max": 23556.0,
+  "cpu_seconds": 0.06,
+  "cpu_fraction": 0.001,
+  "method": "read /proc/<pid>/status VmRSS and /proc/<pid>/stat utime+stime every 2s",
+  "upstream": "fake pymobiledevice3 process",
+  "phone_location_tested": false
+}

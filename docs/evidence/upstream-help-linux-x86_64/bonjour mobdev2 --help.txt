@@ -1,0 +1,16 @@
+                                                                                
+ Usage: pymobiledevice3 bonjour mobdev2 [OPTIONS]                               
+                                                                                
+ Find Wi-Fi-reachable devices advertising lockdown (mobdev2) and print their    
+ info.                                                                          
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --timeout               <float>  How long to browse, in seconds.             │
+│                                  [default: 3]                                │
+│ --pair-records          <path>   Pair record file, or directory of them, to  │
+│                                  try against discovered devices (default:    │
+│                                  this host's pair records).                  │
+│ --help          -h      <bool>   Show this message and exit.                 │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+

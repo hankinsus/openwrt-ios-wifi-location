@@ -1,0 +1,123 @@
+                                                                                
+ Usage: pymobiledevice3 lockdown remotepairing [OPTIONS]                        
+                                                                                
+ Print the device's RemotePairing handshake info; with --pair, also pair.       
+                                                                                
+ Performs a RemotePairing handshake over the                                    
+ com.apple.dt.remotepairingdeviced.lockdown control channel and prints the      
+ device's handshake info (peer device info, wire protocol versions, pairing     
+ capabilities). This control channel does not create tunnels - use              
+ `start-tunnel` for that.                                                       
+                                                                                
+ With --pair, performs RemotePairing pair-setup when the device is not          
+ already paired. Because this runs over the already-trusted lockdownd (USB)     
+ transport, pairing is promptless - no Trust dialog is shown - and it writes    
+ the RemotePairing pair record used by `pymobiledevice3 remote start-tunnel`,   
+ letting you bootstrap that record over USB without any on-device               
+ interaction.                                                                   
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --pair          <bool>  Perform RemotePairing pair-setup if not already      │
+│                         paired (promptless over lockdownd).                  │
+│ --raw           <bool>  Do not decode the base64 [已隐藏]
+│ --help  -h      <bool>  Show this message and exit.                          │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Device Options ─────────────────────────────────────────────────────────────╮
+│ --rsd                              HOST PORT  Hostname and port of a         │
+│                                               RemoteServiceDiscovery (from   │
+│                                               any of the `start-tunnel`      │
+│                                               subcommands). Mutually         │
+│                                               exclusive with --tunnel.       │
+│ --tunnel                           <str>      Use a device discovered via    │
+│                                               tunneld. Provide a UDID        │
+│                                               (optionally with :PORT) or     │
+│                                               leave empty to pick            │
+│                                               interactively.                 │
+│                                               UDID@HOST[:PORT] reaches a     │
+│                                               remote tunneld, bridging       │
+│                                               device connections through its │
+│                                               WS /connect endpoint (use it   │
+│                                               whenever the tunnel interface  │
+│                                               is unreachable from this       │
+│                                               process, e.g. tunneld in       │
+│                                               docker, on another host, or    │
+│                                               behind an SSH port-forward).   │
+│                                               Mutually exclusive with --rsd. │
+│                                               [env var:                      │
+│                                               PYMOBILEDEVICE3_TUNNEL]        │
+│ --userspace                        <bool>     Establish the iOS 17+ tunnel   │
+│                                               in-process with a pure-Python  │
+│                                               userspace network stack, so NO │
+│                                               root/admin is required.        │
+│                                               Downloads (device->host, e.g.  │
+│                                               fetch-symbols) run at roughly  │
+│                                               the kernel tunnel's            │
+│                                               throughput; host->device       │
+│                                               transfers (DDI mounts, file    │
+│                                               pushes) are slower, as their   │
+│                                               send segments are kept small   │
+│                                               for reliable delivery through  │
+│                                               the pure-Python path. This is  │
+│                                               already the default transport; │
+│                                               pass it to force it over an    │
+│                                               environment override.          │
+│                                               [env var:                      │
+│                                               PYMOBILEDEVICE3_USERSPACE]     │
+│ --remotepairing                    <bool>     Build the no-root userspace    │
+│                                               tunnel over RemotePairing      │
+│                                               instead of USB, for a device   │
+│                                               paired over the network with   │
+│                                               `remote pair` (e.g. an Apple   │
+│                                               TV, on Wi-Fi or Ethernet).     │
+│                                               Found over bonjour; --udid     │
+│                                               names the identifier the       │
+│                                               RemotePairing record is stored │
+│                                               under (remote_<id>.plist),     │
+│                                               required when there are        │
+│                                               several. Implies --userspace;  │
+│                                               mutually exclusive with        │
+│                                               --rsd/--tunnel/--native.       │
+│                                               [env var:                      │
+│                                               PYMOBILEDEVICE3_REMOTEPAIRING] │
+│ --native                           <bool>     macOS only: reach the iOS 17+  │
+│                                               tunnel by piggybacking Apple's │
+│                                               own `remoted` tunnel via the   │
+│                                               `remotepairingd` service. NO   │
+│                                               root, no entitlement, no       │
+│                                               Xcode. Rides Apple's           │
+│                                               kernel-routable tunnel, so     │
+│                                               throughput matches the kernel  │
+│                                               tunnel, but the device keeps a │
+│                                               single RSD connection on it:   │
+│                                               `remoted` and this process     │
+│                                               evict each other's, which can  │
+│                                               reset connections and leave    │
+│                                               Xcode/devicectl without the    │
+│                                               device until `remoted`         │
+│                                               reconnects. Mutually exclusive │
+│                                               with                           │
+│                                               --rsd/--tunnel/--userspace.    │
+│                                               [env var:                      │
+│                                               PYMOBILEDEVICE3_NATIVE]        │
+│ --mobdev2          --no-mobdev2    <bool>     Discover devices over          │
+│                                               bonjour/mobdev2 instead of     │
+│                                               usbmux.                        │
+│                                               [default: no-mobdev2]          │
+│ --mobdev2-host                     HOSTNAME   Connect over mobdev2 to the    │
+│                                               device at this hostname or IP  │
+│                                               address, without browsing for  │
+│                                               it.                            │
+│ --usbmux                           <str>      Address of the usbmuxd daemon  │
+│                                               (unix socket path or           │
+│                                               HOST:PORT). Defaults to the    │
+│                                               platform usbmuxd if omitted.   │
+│                                               [env var:                      │
+│                                               PYMOBILEDEVICE3_USBMUX,        │
+│                                               USBMUXD_SOCKET_ADDRESS]        │
+│ --udid                             <str>      Target device UDID (defaults   │
+│                                               to the first USB device).      │
+│                                               [env var:                      │
+│                                               PYMOBILEDEVICE3_UDID]          │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+

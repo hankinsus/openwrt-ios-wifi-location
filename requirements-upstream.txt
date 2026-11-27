@@ -1,0 +1,5 @@
+# Pinned from https://pypi.org/pypi/pymobiledevice3/json on 2026-11-25.
+# That release reports version 11.63.1 and requires-python >=3.9.
+# This file is not a dependency of ios-wifi-loc. CI installs it to verify the real CLI.
+# It is not evidence that OpenWrt, a 128MB MIPS device, or a physical iPhone works.
+pymobiledevice3==11.63.1

@@ -1,0 +1,300 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000020 /* LanLocationApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000010 /* LanLocationApp.swift */; };
+		A10000000000000000000021 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* ContentView.swift */; };
+		A10000000000000000000022 /* LanLocationCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* LanLocationCore.swift */; };
+		A10000000000000000000023 /* DeviceLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* DeviceLink.swift */; };
+		A10000000000000000000024 /* PairingFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* PairingFileStore.swift */; };
+		A10000000000000000000025 /* RemotePairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* RemotePairing.swift */; };
+		A10000000000000000000026 /* OnDevicePairingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000016 /* OnDevicePairingService.swift */; };
+		A10000000000000000000027 /* DeveloperDiskImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* DeveloperDiskImageService.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A10000000000000000000010 /* LanLocationApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanLocationApp.swift; sourceTree = "<group>"; };
+		A10000000000000000000011 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A10000000000000000000012 /* LanLocationCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanLocationCore.swift; sourceTree = "<group>"; };
+		A10000000000000000000013 /* DeviceLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceLink.swift; sourceTree = "<group>"; };
+		A10000000000000000000014 /* PairingFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingFileStore.swift; sourceTree = "<group>"; };
+		A10000000000000000000015 /* RemotePairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePairing.swift; sourceTree = "<group>"; };
+		A10000000000000000000016 /* OnDevicePairingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnDevicePairingService.swift; sourceTree = "<group>"; };
+		A10000000000000000000017 /* DeveloperDiskImageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperDiskImageService.swift; sourceTree = "<group>"; };
+		A10000000000000000000080 /* LanLocation.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LanLocation.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A10000000000000000000032 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A10000000000000000000030 = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000031 /* App */,
+				A10000000000000000000033 /* Sources */,
+				A10000000000000000000034 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A10000000000000000000031 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000010 /* LanLocationApp.swift */,
+				A10000000000000000000011 /* ContentView.swift */,
+				A10000000000000000000013 /* DeviceLink.swift */,
+				A10000000000000000000014 /* PairingFileStore.swift */,
+				A10000000000000000000015 /* RemotePairing.swift */,
+				A10000000000000000000016 /* OnDevicePairingService.swift */,
+				A10000000000000000000017 /* DeveloperDiskImageService.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000033 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000035 /* LanLocationCore */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000035 /* LanLocationCore */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000012 /* LanLocationCore.swift */,
+			);
+			path = LanLocationCore;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000034 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000080 /* LanLocation.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A10000000000000000000040 /* LanLocation */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000071 /* Build configuration list for PBXNativeTarget "LanLocation" */;
+			buildPhases = (
+				A10000000000000000000037 /* Fetch idevice */,
+				A10000000000000000000036 /* Sources */,
+				A10000000000000000000032 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LanLocation;
+			productName = LanLocation;
+			productReference = A10000000000000000000080 /* LanLocation.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A10000000000000000000041 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A10000000000000000000040 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = A10000000000000000000070 /* Build configuration list for PBXProject "LanLocation" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = zh-Hans;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				"zh-Hans",
+			);
+			mainGroup = A10000000000000000000030;
+			productRefGroup = A10000000000000000000034 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A10000000000000000000040 /* LanLocation */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A10000000000000000000037 /* Fetch idevice */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/scripts/idevice.lock",
+				"$(SRCROOT)/scripts/fetch-idevice.sh",
+			);
+			name = "Fetch idevice";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Vendor/idevice/include/idevice.h",
+				"$(SRCROOT)/Vendor/idevice/iphoneos/libidevice_ffi.a",
+				"$(SRCROOT)/Vendor/idevice/iphonesimulator/libidevice_ffi.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/scripts/fetch-idevice.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A10000000000000000000036 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000020 /* LanLocationApp.swift in Sources */,
+				A10000000000000000000021 /* ContentView.swift in Sources */,
+				A10000000000000000000022 /* LanLocationCore.swift in Sources */,
+				A10000000000000000000023 /* DeviceLink.swift in Sources */,
+				A10000000000000000000024 /* PairingFileStore.swift in Sources */,
+				A10000000000000000000025 /* RemotePairing.swift in Sources */,
+				A10000000000000000000026 /* OnDevicePairingService.swift in Sources */,
+				A10000000000000000000027 /* DeveloperDiskImageService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A10000000000000000000050 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A10000000000000000000051 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A10000000000000000000060 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Vendor/idevice/include";
+				INFOPLIST_KEY_CFBundleDisplayName = "本机定位";
+				INFOPLIST_KEY_NSBonjourServices = ("_remotepairing._tcp", "_remotepairing-pairable-host._tcp", "_remotepairing-manual-pairing._tcp", "_lanlocationprobe._tcp");
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "本机定位需要本地网络，用来发现配对服务和远程配对端口。";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/Vendor/idevice/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = "$(PROJECT_DIR)/Vendor/idevice/iphoneos";
+				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "$(PROJECT_DIR)/Vendor/idevice/iphonesimulator";
+				MARKETING_VERSION = 0.2.0;
+				OTHER_LDFLAGS = ("$(inherited)", "-lc++", "-liconv", "-lz", "-lresolv", "-framework", "Security", "-framework", "SystemConfiguration", "-framework", "CoreFoundation", "-framework", "Foundation", "-framework", "Network");
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = ("$(inherited)", "-force_load", "$(PROJECT_DIR)/Vendor/idevice/iphoneos/libidevice_ffi.a", "-lc++", "-liconv", "-lz", "-lresolv", "-framework", "Security", "-framework", "SystemConfiguration", "-framework", "CoreFoundation", "-framework", "Foundation", "-framework", "Network");
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = ("$(inherited)", "-force_load", "$(PROJECT_DIR)/Vendor/idevice/iphonesimulator/libidevice_ffi.a", "-lc++", "-liconv", "-lz", "-lresolv", "-framework", "Security", "-framework", "SystemConfiguration", "-framework", "CoreFoundation", "-framework", "Foundation", "-framework", "Network");
+				PRODUCT_BUNDLE_IDENTIFIER = local.lanlocation.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INCLUDE_PATHS = "$(PROJECT_DIR)/Vendor/idevice/include";
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A10000000000000000000061 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Vendor/idevice/include";
+				INFOPLIST_KEY_CFBundleDisplayName = "本机定位";
+				INFOPLIST_KEY_NSBonjourServices = ("_remotepairing._tcp", "_remotepairing-pairable-host._tcp", "_remotepairing-manual-pairing._tcp", "_lanlocationprobe._tcp");
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "本机定位需要本地网络，用来发现配对服务和远程配对端口。";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = "$(PROJECT_DIR)/Vendor/idevice/iphoneos";
+				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "$(PROJECT_DIR)/Vendor/idevice/iphonesimulator";
+				MARKETING_VERSION = 0.2.0;
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = ("$(inherited)", "-force_load", "$(PROJECT_DIR)/Vendor/idevice/iphoneos/libidevice_ffi.a", "-lc++", "-liconv", "-lz", "-lresolv", "-framework", "Security", "-framework", "SystemConfiguration", "-framework", "CoreFoundation", "-framework", "Foundation", "-framework", "Network");
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = ("$(inherited)", "-force_load", "$(PROJECT_DIR)/Vendor/idevice/iphonesimulator/libidevice_ffi.a", "-lc++", "-liconv", "-lz", "-lresolv", "-framework", "Security", "-framework", "SystemConfiguration", "-framework", "CoreFoundation", "-framework", "Foundation", "-framework", "Network");
+				PRODUCT_BUNDLE_IDENTIFIER = local.lanlocation.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INCLUDE_PATHS = "$(PROJECT_DIR)/Vendor/idevice/include";
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A10000000000000000000070 /* Build configuration list for PBXProject "LanLocation" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000050 /* Debug */,
+				A10000000000000000000051 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000000000000000000071 /* Build configuration list for PBXNativeTarget "LanLocation" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000060 /* Debug */,
+				A10000000000000000000061 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A10000000000000000000041 /* Project object */;
+}

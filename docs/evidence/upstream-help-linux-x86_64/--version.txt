@@ -1,0 +1,6 @@
+
+Usage: pymobiledevice3 [OPTIONS] COMMAND [ARGS]...
+Try 'pymobiledevice3 -h' for help.
+╭─ Error ──────────────────────────────────────────────────────────────────────╮
+│ No such option: --version (Possible options: --verbose)                      │
+╰──────────────────────────────────────────────────────────────────────────────╯

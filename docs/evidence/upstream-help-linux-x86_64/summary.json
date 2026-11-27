@@ -1,0 +1,147 @@
+{
+  "binary": "/tmp/pmd-venv/bin/pymobiledevice3",
+  "required_ok": true,
+  "version_help_ok": true,
+  "physical_iphone": false,
+  "rows": [
+    {
+      "argv": [
+        "developer",
+        "dvt",
+        "simulate-location",
+        "set",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "missing": [],
+      "required": true,
+      "ok": true
+    },
+    {
+      "argv": [
+        "developer",
+        "simulate-location",
+        "set",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "missing": [],
+      "required": true,
+      "ok": true
+    },
+    {
+      "argv": [
+        "developer",
+        "dvt",
+        "simulate-location",
+        "clear",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "missing": [],
+      "required": true,
+      "ok": true
+    },
+    {
+      "argv": [
+        "usbmux",
+        "list",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "missing": [],
+      "required": true,
+      "ok": true
+    },
+    {
+      "argv": [
+        "remote",
+        "browse",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "missing": [],
+      "required": true,
+      "ok": true
+    },
+    {
+      "argv": [
+        "lockdown",
+        "info",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "missing": [],
+      "required": true,
+      "ok": true
+    },
+    {
+      "argv": [
+        "version"
+      ],
+      "returncode": 0,
+      "error": null,
+      "required": false,
+      "ok": true
+    },
+    {
+      "argv": [
+        "--version"
+      ],
+      "returncode": 2,
+      "error": null,
+      "required": false,
+      "ok": false
+    },
+    {
+      "argv": [
+        "bonjour",
+        "mobdev2",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "required": false,
+      "ok": true
+    },
+    {
+      "argv": [
+        "remote",
+        "pair-host",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "required": false,
+      "ok": true
+    },
+    {
+      "argv": [
+        "lockdown",
+        "wifi-connections",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "required": false,
+      "ok": true
+    },
+    {
+      "argv": [
+        "lockdown",
+        "remotepairing",
+        "--help"
+      ],
+      "returncode": 0,
+      "error": null,
+      "required": false,
+      "ok": true
+    }
+  ]
+}
