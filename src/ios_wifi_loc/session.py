@@ -3,14 +3,24 @@ from __future__ import annotations
 import os
 import signal
 import sys
+import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from ios_wifi_loc.coords import CoordError, parse_pair
 from ios_wifi_loc.discovery import command_failed, discover
 from ios_wifi_loc.identifiers import IdentifierError, validate_name, validate_udid
-from ios_wifi_loc.runner import holder_matches, interrupt_holder, pid_alive, run, spawn
+from ios_wifi_loc.runner import (
+    holder_matches,
+    interrupt_holder,
+    pid_alive,
+    pids_matching,
+    run,
+    spawn,
+    terminate_pids,
+)
 from ios_wifi_loc.state import StateStore
 from ios_wifi_loc.tunneld import query_tunneld, tunnel_ready_for
 from ios_wifi_loc.upstream import (
@@ -316,7 +326,142 @@ def auto_restore_enabled() -> bool:
     return os.environ.get("IOS_WIFI_LOC_NO_AUTORESTORE", "").strip().lower() not in {"1", "true", "yes"}
 
 
-_RESUME_LOCK = __import__("threading").Lock()
+_RESUME_LOCK = threading.Lock()
+_UDID_THREAD_LOCKS: dict[str, threading.Lock] = {}
+_UDID_THREAD_GUARD = threading.Lock()
+
+
+def _safe_udid_token(udid: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in udid)
+
+
+def _thread_lock_for_udid(udid: str) -> threading.Lock:
+    with _UDID_THREAD_GUARD:
+        lock = _UDID_THREAD_LOCKS.get(udid)
+        if lock is None:
+            lock = threading.Lock()
+            _UDID_THREAD_LOCKS[udid] = lock
+        return lock
+
+
+@contextmanager
+def hold_spawn_lock(store: StateStore, udid: str):
+    """Serialize starting/stopping _hold for one UDID (thread + fcntl file lock)."""
+    thread_lock = _thread_lock_for_udid(udid)
+    thread_lock.acquire()
+    handle = None
+    try:
+        path = store.directory / f"hold.{_safe_udid_token(udid)}.lock"
+        path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+        handle = open(path, "a+", encoding="utf-8")
+        try:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        except ImportError:
+            pass
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+        yield
+    finally:
+        if handle is not None:
+            try:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            except (ImportError, OSError):
+                pass
+            try:
+                handle.close()
+            except OSError:
+                pass
+        thread_lock.release()
+
+
+def _known_udids(data: dict) -> list[str]:
+    found: list[str] = []
+    def _add(value: object) -> None:
+        if not isinstance(value, str) or not value or value in found:
+            return
+        try:
+            found.append(validate_udid(value))
+        except IdentifierError:
+            found.append(value)
+
+    selected = data.get("selected") if isinstance(data.get("selected"), dict) else {}
+    _add(selected.get("udid"))
+    for udid in (_sessions_map(data) or {}):
+        _add(udid)
+    for udid in desired_targets_map(data):
+        _add(udid)
+    for item in data.get("discovery") or []:
+        if isinstance(item, dict):
+            _add(item.get("udid"))
+    return found
+
+
+def reap_stray_holders(store: StateStore, udid: str | None = None, *, timeout: float = 5) -> dict:
+    """Stop leftover _hold / simulate-location processes for one or all known UDIDs."""
+    data = store.load()
+    targets = [udid] if udid else _known_udids(data)
+    pids: list[int] = []
+    if udid:
+        pids.extend(pids_matching(udid=udid, holders=True))
+        session = _session_for(data, udid) or {}
+        for key in ("pid", "watchdog_pid", "child_pid"):
+            value = session.get(key)
+            if isinstance(value, int) and value > 1:
+                pids.append(value)
+    else:
+        pids.extend(pids_matching(state_dir=store.directory, holders=True))
+        for item in targets:
+            pids.extend(pids_matching(udid=item, holders=True))
+        for session in _sessions_map(data).values():
+            if not isinstance(session, dict):
+                continue
+            for key in ("pid", "watchdog_pid", "child_pid"):
+                value = session.get(key)
+                if isinstance(value, int) and value > 1:
+                    pids.append(value)
+    if udid:
+        try:
+            from ios_wifi_loc.watchdog import request_stop
+
+            request_stop(store, udid)
+        except Exception:
+            pass
+    else:
+        try:
+            from ios_wifi_loc.watchdog import request_stop
+
+            for item in targets:
+                request_stop(store, item)
+        except Exception:
+            pass
+    result = terminate_pids(pids, timeout=timeout)
+    # Clear stale PIDs in state for UDIDs we touched.
+    touched = targets or []
+    with store.transaction() as payload:
+        for item in touched:
+            session = _session_for(payload, item)
+            if not session:
+                continue
+            session = dict(session)
+            session["pid"] = None
+            session["watchdog_pid"] = None
+            session["child_pid"] = None
+            session["holding"] = False
+            session["watchdog_active"] = False
+            session["waiting_reconnect"] = False
+            session["waiting_for_wifi"] = False
+            _put_session(payload, item, session)
+    return result
+
+
+def stop_all_holders(store: StateStore, *, timeout: float = 5) -> dict:
+    return reap_stray_holders(store, None, timeout=timeout)
 
 
 def resume_desired_targets(
@@ -351,11 +496,14 @@ def resume_desired_targets(
             session = _session_for(data, udid) or {}
             pid = session.get("pid")
             is_holding = False
+            extras = len(pids_matching(udid=udid, holders=True))
             if holding is not None:
                 is_holding = bool(holding(item, session))
             elif isinstance(pid, int) and pid > 1:
                 is_holding = holder_matches(pid)
-            if is_holding:
+            else:
+                is_holding = extras == 1
+            if is_holding and extras <= 1:
                 results.append({"udid": udid, "action": "already_holding", "ok": True, "lat": item["lat"], "lon": item["lon"]})
                 continue
             if apply is not None:
@@ -670,13 +818,52 @@ def _apply_location(
         target = _selected_target(data, usbmux_address=usbmux_address)
     except (PlanError, IdentifierError) as exc:
         return _fail("VALIDATION", 2, str(exc))
+    with hold_spawn_lock(store, target.udid):
+        return _apply_location_locked(
+            store,
+            binary,
+            target=target,
+            latitude=lat,
+            longitude=lon,
+            profile=profile,
+            timeout=timeout,
+            grace=grace,
+            foreground=foreground,
+            allow_usb=allow_usb,
+            allow_legacy=allow_legacy,
+            usbmux_address=usbmux_address,
+            replace=replace,
+        )
+
+
+def _apply_location_locked(
+    store: StateStore,
+    binary: str,
+    *,
+    target: Target,
+    latitude: str,
+    longitude: str,
+    profile: str,
+    timeout: float,
+    grace: float,
+    foreground: bool,
+    allow_usb: bool,
+    allow_legacy: bool,
+    usbmux_address: str | None,
+    replace: bool,
+) -> Outcome:
+    lat, lon = latitude, longitude
+    data = _release_stale_holder(store, store.load())
     session = _session_for(data, target.udid) or {}
-    if session.get("pid") and holder_matches(int(session["pid"])):
-        if not replace:
-            return _fail("DUPLICATE_SESSION", 4, "该设备已有定位会话进程。先清除它，再发送新坐标。不会启动第二个会话。其它手机的模拟不受影响。")
-        stop_holder_for_udid(store, target.udid, timeout=min(timeout, 5))
-        data = store.load()
-        data = _release_stale_holder(store, data)
+    live = pids_matching(udid=target.udid, holders=True)
+    recorded = session.get("pid")
+    has_live = bool(live) or (isinstance(recorded, int) and recorded > 1 and holder_matches(recorded))
+    if has_live and not replace:
+        return _fail("DUPLICATE_SESSION", 4, "该设备已有定位会话进程。先清除它，再发送新坐标。不会启动第二个会话。其它手机的模拟不受影响。")
+    # Always drop previous holders for this UDID before a replace/new start,
+    # including orphans that are no longer recorded in state.json.
+    reap_stray_holders(store, target.udid, timeout=min(timeout, 5))
+    data = _release_stale_holder(store, store.load())
     resolved = profile
     if profile == "auto":
         resolved, probe = _probe_kind(binary, target, timeout)
@@ -895,18 +1082,16 @@ def stop_holder_for_udid(store: StateStore, udid: str | None, *, timeout: float)
             value = session.get(key)
             if isinstance(value, int) and value > 1 and value not in pids:
                 pids.append(value)
+    if udid:
+        pids.extend(pids_matching(udid=udid, holders=True))
     if pids:
-        holder = interrupt_holder(pids[0], wait_s=min(timeout, 5))
-        for extra in pids[1:]:
-            if not pid_alive(extra):
-                continue
-            try:
-                os.killpg(extra, signal.SIGKILL)
-            except (ProcessLookupError, PermissionError, OSError):
-                try:
-                    os.kill(extra, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
+        holder = terminate_pids(pids, timeout=min(timeout, 5))
+        holder = {
+            "signaled": bool(holder.get("signaled")),
+            "exited": not holder.get("remaining"),
+            "reason": "exited" if not holder.get("remaining") else "unconfirmed",
+            "pids": holder.get("pids") or pids,
+        }
         if udid:
             current = _session_for(data, udid)
             if current:

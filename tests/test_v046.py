@@ -30,18 +30,23 @@ def _inline_scripts(html: str) -> list[str]:
 
 
 def test_version_is_046():
-    assert __version__ == "0.4.6"
+    assert __version__ == "0.4.7"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.6" in html
-    assert "OpenWrt 无线虚拟定位 · v0.4.6" in html
+    assert "v0.4.7" in html
+    assert "OpenWrt 无线虚拟定位 · v0.4.7" in html
     assert "v0.4.5" not in html
 
 
 def test_map_is_full_bleed_and_cards_stay_narrow():
     html = render_page("csrf", no_auth=True)
     assert "#app { width:100%; max-width:none;" in html
+    assert ".map-shell { width:100%; max-width:100%;" in html
     assert ".map-wrap { width:100%; max-width:100%;" in html
+    assert "100vw" not in html
     assert "border-radius:0" in html
+    assert "overflow:visible" in html
+    assert "left:8px; right:8px;" in html
+    assert "margin:28px auto 0 auto" in html
     assert "#map { height:420px;" in html
     assert "@media (max-width:1024px)" in html
     assert "@media (max-width:600px)" in html
@@ -231,15 +236,31 @@ def _run_viewport(browser, url: str, name: str, width: int, height: int) -> list
               }
             }
           }
+          const layers = [...document.querySelectorAll("#layers .layer-btn, .layer-switch .layer-btn")];
+          const layerInfo = layers.map((el) => {
+            const r = el.getBoundingClientRect();
+            return { text: (el.innerText || "").trim(), left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
+          });
+          const footer = document.querySelector(".footer-card");
+          const footerStyle = footer ? getComputedStyle(footer) : null;
+          const footerGap = (footer && panel) ? (footer.getBoundingClientRect().top - panel.getBoundingClientRect().bottom) : -1;
+          const cards = [...document.querySelectorAll("#app .card")];
+          const lastCard = cards.length ? cards[cards.length - 1] : null;
+          const footerAfter = (footer && lastCard) ? (footer.getBoundingClientRect().top - lastCard.getBoundingClientRect().bottom) : footerGap;
           return {
             scrollWidth: doc.scrollWidth,
             clientWidth: doc.clientWidth,
+            innerWidth: window.innerWidth,
             mapWidth: mapBox.width,
             mapLeft: mapBox.left,
             mapHeight: mapBox.height,
             panelWidth: panelBox.width,
             errorHeight: emptyError ? errBox.height : -1,
             overlaps,
+            layerInfo,
+            footerMarginTop: footerStyle ? parseFloat(footerStyle.marginTop) || 0 : -1,
+            footerBg: footerStyle ? footerStyle.backgroundColor : "",
+            footerAfter,
           };
         }"""
     )
@@ -262,6 +283,22 @@ def _run_viewport(browser, url: str, name: str, width: int, height: int) -> list
         errors.append(f"{name} empty action-error still takes space: {metrics['errorHeight']}")
     if metrics["overlaps"]:
         errors.append(f"{name} overlapping controls: {metrics['overlaps'][:8]}")
+    layers = metrics.get("layerInfo") or []
+    if len(layers) != 6:
+        errors.append(f"{name} expected 6 layer buttons, got {len(layers)}: {layers}")
+    else:
+        vw = metrics.get("innerWidth") or metrics["clientWidth"]
+        for item in layers:
+            if item["width"] < 8 or item["height"] < 8:
+                errors.append(f"{name} layer button {item['text']!r} not visible: {item}")
+            if item["right"] > vw + 1 or item["left"] < -1:
+                errors.append(
+                    f"{name} layer button {item['text']!r} clipped: right={item['right']} left={item['left']} viewport={vw}"
+                )
+    if metrics.get("footerMarginTop", -1) < 24:
+        errors.append(f"{name} footer margin-top too small: {metrics.get('footerMarginTop')}")
+    if metrics.get("footerAfter", -1) >= 0 and metrics["footerAfter"] < 20:
+        errors.append(f"{name} footer too close to the card above: gap={metrics['footerAfter']}")
 
     # Shared, non-destructive checks on every viewport.
     try:

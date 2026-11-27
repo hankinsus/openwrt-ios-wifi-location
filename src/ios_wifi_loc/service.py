@@ -32,9 +32,11 @@ from ios_wifi_loc.session import (
     refresh_devices,
     resume_desired_targets,
     restore_desired_loop,
+    reap_stray_holders,
     select_device,
     set_location,
     status,
+    stop_all_holders,
 )
 from ios_wifi_loc.shortcut import ShortcutError, format_shortcut_status, shortcut_clear, shortcut_set
 from ios_wifi_loc.sharelinks import ShareLinkError
@@ -840,6 +842,9 @@ def serve(
     secret = load_or_create_secret(secret_path(store.directory))
     lock = acquire_lock(store.directory)
     should_restore = restore if restore is not None else True
+    # Drop orphan _hold / simulate-location left behind by a previous serve/upgrade
+    # so this process is the only one that may start new holders.
+    reap_stray_holders(store, timeout=min(timeout, 5))
     console = Console(store, binary, secret, timeout=timeout, grace=grace, require_auth=require_auth, restore=should_restore)
     status(store)
     handler = type("BoundHandler", (Handler,), {"console": console, "expected_host": ""})
@@ -870,5 +875,9 @@ def serve(
         server.serve_forever(poll_interval=0.2)
     finally:
         stop.set()
+        try:
+            stop_all_holders(store, timeout=min(timeout, 5))
+        except Exception:
+            pass
         server.server_close()
         lock.close()

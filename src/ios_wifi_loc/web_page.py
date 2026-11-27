@@ -16,8 +16,9 @@ PAGE = r"""<!DOCTYPE html>
 html { -webkit-text-size-adjust:100%; }
 body { font-family:-apple-system,system-ui,sans-serif; background:var(--bg); color:var(--text); overflow-x:hidden; }
 #login-card { max-width:720px; width:100%; margin:0 auto; padding:16px; }
-#app { width:100%; max-width:none; margin:0; padding:0 0 16px; }
-.map-wrap { width:100%; max-width:100%; margin:0; border-radius:0; overflow:hidden; position:relative; }
+#app { width:100%; max-width:none; margin:0; padding:0 0 36px; }
+.map-shell { width:100%; max-width:100%; margin:0; padding:0; display:block; }
+.map-wrap { width:100%; max-width:100%; margin:0; border-radius:0; overflow:visible; position:relative; }
 #map { height:420px; width:100%; min-height:380px; background:#d8d8dc; }
 .panel { padding:16px; max-width:720px; width:100%; margin:0 auto 8px auto; }
 .card { background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); overflow:hidden; }
@@ -39,8 +40,8 @@ label { display:block; font-size:13px; color:#3a3a3c; margin-top:8px; }
 .notice { font-size:12px; color:var(--gray); text-align:center; line-height:1.5; margin-top:8px; }
 .toast { position:fixed; top:60px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.8); color:#fff; padding:10px 20px; border-radius:20px; font-size:14px; opacity:0; transition:opacity .3s; pointer-events:none; z-index:9999; max-width:90%; }
 .toast.show { opacity:1; }
-.layer-switch { position:absolute; top:10px; right:10px; z-index:1000; display:flex; gap:4px; background:rgba(255,255,255,.92); border-radius:8px; padding:4px; box-shadow:0 2px 8px rgba(0,0,0,.15); flex-wrap:wrap; max-width:calc(100% - 20px); justify-content:flex-end; }
-.layer-btn { border:none; background:transparent; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; color:#333; font-weight:500; }
+.layer-switch { position:absolute; top:10px; left:8px; right:8px; width:auto; max-width:none; box-sizing:border-box; z-index:1000; display:flex; gap:4px; background:rgba(255,255,255,.92); border-radius:8px; padding:4px; box-shadow:0 2px 8px rgba(0,0,0,.15); flex-wrap:wrap; justify-content:flex-end; align-content:flex-start; min-width:0; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; }
+.layer-btn { border:none; background:transparent; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; color:#333; font-weight:500; flex:0 0 auto; min-width:0; white-space:nowrap; }
 .layer-btn.active { background:var(--blue); color:#fff; }
 .active-loc { background:var(--bg); border-radius:8px; padding:10px 12px; font-size:13px; color:#333; margin-top:8px; }
 .active-loc .label { font-size:11px; color:var(--gray); margin-bottom:4px; }
@@ -73,7 +74,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .modal { background:#fff; border-radius:16px; padding:20px; width:100%; max-width:340px; }
 .modal h3 { font-size:17px; font-weight:600; margin-bottom:16px; text-align:center; }
 .modal input { width:100%; padding:12px; border:1px solid #d1d1d6; border-radius:10px; font-size:15px; outline:none; margin-bottom:12px; }
-.footer-card { text-align:center; padding:14px 16px; background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); margin:8px 0 0 0; }
+.footer-card { text-align:center; padding:4px 16px 8px; background:transparent; border-radius:0; box-shadow:none; margin:28px auto 0 auto; max-width:720px; }
 .footer-brand { font-weight:600; font-size:15px; color:var(--text); margin-bottom:0; }
 .footer-version { font-size:12px; color:var(--gray); margin-bottom:8px; font-family:ui-monospace,Menlo,monospace; font-weight:700; }
 .bad { color:var(--red); font-size:13px; margin-top:8px; }
@@ -126,13 +127,13 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 }
 @media (max-width:600px) {
   #login-card { max-width:100%; padding:12px; }
-  #app { padding:0 0 16px; }
+  #app { padding:0 0 32px; }
   .panel { padding:12px; }
   #map { height:38vh; min-height:220px; max-height:340px; }
   .btn { min-height:44px; }
   .btn-sm { min-height:36px; }
   .device-select { width:100%; }
-  .layer-switch { max-width:calc(100% - 16px); }
+  .layer-switch { left:8px; right:8px; max-width:none; }
   .row .btn, .shortcut-install .btn { flex:1 1 calc(50% - 8px); }
 }
 .pair-group { background:var(--bg); border-radius:10px; padding:12px; margin-bottom:8px; }
@@ -142,7 +143,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .pair-file-name { flex:1; min-width:0; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; word-break:break-all; }
 .pair-file .badge { flex:none; }
 .shortcut-install { margin:0 0 10px 0; }
-.map-wrap { position:relative; }
+.map-shell, .map-wrap { position:relative; }
 </style>
 </head>
 <body>
@@ -156,6 +157,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
   </div>
 </div>
 <div id="app" hidden>
+  <div class="map-shell">
   <div class="map-wrap">
     <div id="map"></div>
     <div id="map-fallback">地图组件未能加载，仍可手动输入或粘贴坐标。</div>
@@ -167,6 +169,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
       <button class="layer-btn" data-layer="standard" type="button">标准</button>
       <button class="layer-btn" data-layer="dark" type="button">暗色</button>
     </div>
+  </div>
   </div>
   <div class="panel device-bar-wrap">
     <div class="card" style="margin-bottom:0">
@@ -292,7 +295,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
     </div>
 
     <div class="footer-card">
-      <div class="footer-brand">OpenWrt 无线虚拟定位 · v0.4.6</div>
+      <div class="footer-brand">OpenWrt 无线虚拟定位 · v0.4.7</div>
     </div>
     <p id="action-error" class="bad"></p>
     <p class="notice" id="logout-wrap" hidden><button class="btn btn-sm btn-secondary" id="logout" type="button">退出</button></p>

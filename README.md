@@ -1,4 +1,4 @@
-# ios-wifi-loc 0.4.6
+# ios-wifi-loc 0.4.7
 
 在 R4S 或其它 OpenWrt / Debian / Ubuntu 机器上，**一条命令**完成下载、补齐环境和安装。升级同一条命令即可，会保留已有口令和配对文件：
 
@@ -75,6 +75,8 @@ v0.4.4 把两个已验证可用的 iOS 快捷指令做成网页一键安装按�
 配对列表的删除按钮与「我的收藏」统一为圆形浅底红 ×。网页「配对管理」默认只显示已导入列表和醒目的「下载 Windows 一键配对工具」按钮：双击运行即可自动检测/安装 Python（兼容 `python` / `py`，跳过 WindowsApps 空壳占位符；没有时用 `winget` 安装 Python 3.12 并刷新 PATH），开启开发者模式、配对并打开 Wi-Fi，再按当前网页地址把最新的 `<UDID>.plist` 和 `SystemConfiguration.plist` 自动上传到本机 `/api/pairing/import`。手动 PowerShell 步骤和拖拽上传收在默认折叠的「展开手动配置与手动上传」里，作为兜底。设备下拉框和选中卡片都会显示完整的手机名称与 iOS 版本（例如 `iPhone17 PRO (iOS 27.2.1)`），发现结果只有泛泛的「iPhone」时会回填已保存或配对记录里的名称，避免把友好名称冲掉。页面同时适配手机、iPad 和电脑宽度：窄屏竖排不溢出，长 UDID / IPv6 会换行，按钮更好点。
 
 v0.4.5 修复了配对管理卡片下方漏出残缺 HTML 文本的问题。电脑端把主容器收窄到 720px 居中，地图与卡片对齐，手机和 iPad 仍自适应、不溢出。选中设备蓝框改为三行：第一行左侧是设备名与 iOS 版本（例如 `iPhone17 PRO · iOS 27.2.1`），右侧同一行是蓝色「已选择」徽章；第二行是 UDID 与隧道信息；第三行是绿色状态胶囊，单独占一行。折叠面板里的手动配置改回简短的几行命令；完整的自动检测/安装 Python、开启开发者模式、配对开 Wi-Fi、并按网页地址自动上传两个 `.plist` 的能力，仍然保留在 Windows 一键配对工具（`.bat`）里。同时去掉「当前模拟状态」卡片和页脚长说明，页脚只保留 `OpenWrt 无线虚拟定位 · v0.4.5`。
+
+v0.4.7 针对实机 `ps` / `logread` 里同时出现两个 `_hold`、两个 `simulate-location set`，以及旧 `tunneld` 占着 49151 导致 procd `ios-wifi-loc::tunneld` crash loop 的问题做了根治：按 UDID 加线程锁和 `fcntl.flock`，拉起新 `_hold` 前先按进程表和 `state.json` 清掉该设备的旧 `_hold` / `simulate-location`；`serve()` 启动和停止时统一接管，避免升级后孤儿进程继续占着连接。网页点「设置定位」即使坐标没变也会先停掉旧会话再重新下发。OpenWrt `start_service` / `stop_service`（以及 systemd / OpenRC）会清理残留 holder 和占用 49151 的旧 tunneld，并把 procd `respawn` 调整为 `3600 10 3`。页脚与上方卡片拉开间距并去掉多余白框；图层切换栏改为在地图两侧留白内换行，不再使用会在 Windows 下溢出的 `100vw`，六个按钮在手机 / iPad / 电脑都完整可见。
 
 v0.4.6 把顶部地图恢复为视口全宽（电脑端约 420px 高，平板和手机自适应），功能卡片仍按 720px 居中。修复了删除状态卡片后 `paint()` 里残留的 `ready is not defined` 报错，并收紧页脚与空错误条的边距。选中设备卡片右上角徽章改为真实的隧道状态：「已连接」/「未连接」。服务启动或升级重启后，会在后台持续等待 tunneld 发现已保存的设备，再自动重新下发 `desired_targets` 里的坐标；运行中隧道短暂断开再连上时（即使地址端口没变），也会杀掉可能假活的 `simulate-location` 进程并重新设置，避免只显示「保持中、已重连」但手机定位已经掉了。安装/升级脚本仍保留 `/etc/ios-wifi-loc` 里的状态文件。仓库增加前端 JS 语法检查和手机 / iPad / 电脑三个视口的 Playwright 渲染回归，并由 GitHub Actions 在每次推送时自动运行。
 

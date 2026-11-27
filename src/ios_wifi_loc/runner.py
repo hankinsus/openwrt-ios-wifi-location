@@ -141,6 +141,18 @@ def spawn(argv: list[str], *, stdout_path: Path, stderr_path: Path, env: dict[st
     return proc
 
 
+def process_state(pid: int) -> str | None:
+    """Return the /proc status letter (R/S/Z/...) or None if the pid is gone."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+    except OSError:
+        return None
+    close = stat.rfind(")")
+    if close == -1 or close + 2 >= len(stat):
+        return None
+    return stat[close + 2]
+
+
 def pid_alive(pid: int) -> bool:
     if not isinstance(pid, int) or pid <= 1:
         return False
@@ -149,8 +161,12 @@ def pid_alive(pid: int) -> bool:
     except ProcessLookupError:
         return False
     except PermissionError:
-        return True
-    return True
+        # May still inspect /proc; a zombie is not a live holder.
+        pass
+    state = process_state(pid)
+    if state is None:
+        return Path("/proc").is_dir() is False
+    return state not in {"Z", "X"}
 
 
 def process_args(pid: int) -> str:
@@ -205,3 +221,119 @@ def interrupt_holder(pid: int, *, wait_s: float) -> dict[str, object]:
         "exited": exited,
         "reason": "killed" if exited else "unconfirmed",
     }
+
+
+def list_process_table() -> list[tuple[int, str]]:
+    """Return (pid, command line) pairs for the current process table."""
+    rows: list[tuple[int, str]] = []
+    proc = Path("/proc")
+    if proc.is_dir():
+        for entry in proc.iterdir():
+            if not entry.name.isdigit():
+                continue
+            try:
+                pid = int(entry.name)
+            except ValueError:
+                continue
+            if process_state(pid) in {"Z", "X"}:
+                continue
+            cmdline = process_args(pid)
+            if cmdline.strip():
+                rows.append((pid, cmdline))
+        return rows
+    result = subprocess.run(
+        ["ps", "-ax", "-o", "pid=,args="],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    for line in (result.stdout or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(None, 1)
+        if not parts or not parts[0].isdigit():
+            continue
+        rows.append((int(parts[0]), parts[1] if len(parts) > 1 else ""))
+    return rows
+
+
+def is_holder_command(text: str) -> bool:
+    tokens = (text or "").split()
+    if "_hold" in tokens:
+        return True
+    return "simulate-location" in text and "set" in tokens
+
+
+def is_tunneld_command(text: str) -> bool:
+    tokens = (text or "").split()
+    return "tunneld" in tokens and "remote" in tokens
+
+
+def pids_matching(*, udid: str | None = None, state_dir: Path | str | None = None, holders: bool = True, tunneld: bool = False) -> list[int]:
+    """Find leftover location / tunneld processes, optionally scoped to a UDID or state dir."""
+    me = os.getpid()
+    needle_udid = str(udid) if udid else ""
+    needle_state = str(state_dir) if state_dir is not None else ""
+    found: list[int] = []
+    for pid, text in list_process_table():
+        if pid in {me, 0, 1} or pid in found:
+            continue
+        if needle_udid and needle_udid not in text:
+            if not needle_state or needle_state not in text:
+                continue
+        if needle_state and needle_state not in text and (not needle_udid or needle_udid not in text):
+            continue
+        if holders and is_holder_command(text):
+            if needle_udid and needle_udid not in text:
+                continue
+            found.append(pid)
+            continue
+        if tunneld and is_tunneld_command(text):
+            found.append(pid)
+    return found
+
+
+def terminate_pids(pids: list[int], *, timeout: float = 5) -> dict:
+    """SIGINT/SIGTERM the process group, then SIGKILL anything still alive."""
+    unique: list[int] = []
+    me = os.getpid()
+    for pid in pids:
+        if not isinstance(pid, int) or pid <= 1 or pid == me or pid in unique:
+            continue
+        unique.append(pid)
+    signaled = 0
+    for pid in unique:
+        if not pid_alive(pid):
+            continue
+        signaled += 1
+        for sig, use_group in ((signal.SIGINT, True), (signal.SIGTERM, True), (signal.SIGTERM, False)):
+            if not pid_alive(pid):
+                break
+            try:
+                os.killpg(pid, sig) if use_group else os.kill(pid, sig)
+            except (ProcessLookupError, PermissionError, OSError):
+                if use_group:
+                    try:
+                        os.kill(pid, sig)
+                    except (ProcessLookupError, PermissionError, OSError):
+                        pass
+        deadline = time.monotonic() + max(0.05, timeout)
+        while time.monotonic() < deadline and pid_alive(pid):
+            time.sleep(0.05)
+        if pid_alive(pid):
+            for use_group in (True, False):
+                try:
+                    os.killpg(pid, signal.SIGKILL) if use_group else os.kill(pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError, OSError):
+                    pass
+        try:
+            os.waitpid(pid, os.WNOHANG)
+        except (ChildProcessError, OSError):
+            pass
+    return {
+        "pids": unique,
+        "signaled": signaled,
+        "remaining": [pid for pid in unique if pid_alive(pid)],
+    }
+

@@ -157,7 +157,7 @@ def test_login_origin_and_secret_are_not_logged(tmp_path):
         _stop(proc)
 
 
-def test_explicit_start_duplicate_and_no_replay_after_restart(tmp_path):
+def test_explicit_start_replace_and_restore_after_restart(tmp_path):
     proc, host, port = _start(tmp_path)
     try:
         opener, token, _secret = _login(tmp_path, host, port)
@@ -228,15 +228,21 @@ def test_explicit_start_duplicate_and_no_replay_after_restart(tmp_path):
         assert sets_before >= 2
     finally:
         _stop(proc)
+    # A new serve must reap leftover holders, then restore desired_targets.
     proc, host, port = _start(tmp_path)
     try:
         opener, token, _secret = _login(tmp_path, host, port)
-        status, body = _request(opener, host, port, "/api/status")
-        payload = json.loads(body)
-        assert payload["session_alive"] is True
+        payload = None
+        for _ in range(20):
+            status, body = _request(opener, host, port, "/api/status")
+            payload = json.loads(body)
+            if payload.get("session_alive"):
+                break
+            time.sleep(0.5)
+        assert payload is not None and payload["session_alive"] is True, payload
         assert payload["phone_location"] == "unconfirmed"
         assert payload["favorites"][0]["name"] == "门口"
-        assert (tmp_path / "argv.log").read_text(encoding="utf-8").count("simulate-location") == sets_before
+        assert (tmp_path / "argv.log").read_text(encoding="utf-8").count("simulate-location") >= sets_before
     finally:
         _stop(proc)
         payload = json.loads((tmp_path / "state" / "state.json").read_text(encoding="utf-8"))

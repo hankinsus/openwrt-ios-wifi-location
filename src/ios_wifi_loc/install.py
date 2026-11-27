@@ -141,6 +141,93 @@ def _tunneld_command(binary: str) -> str:
     return " ".join(shlex.quote(part) for part in parts)
 
 
+
+def _stale_process_cleanup_shell() -> str:
+    """BusyBox-safe shell to reap leftover holders and a stale tunneld on 49151."""
+    return """cleanup_stale_ios_wifi_holders() {
+	_now=$$
+	for proc in /proc/[0-9]*; do
+		[ -r "$proc/cmdline" ] || continue
+		pid=${proc#/proc/}
+		[ "$pid" = "$_now" ] && continue
+		cmd=$(tr '\\0' ' ' < "$proc/cmdline" 2>/dev/null)
+		[ -n "$cmd" ] || continue
+		case "$cmd" in
+		*_hold*|*"simulate-location"*" set"*|*"developer dvt simulate-location"*)
+			kill -TERM "$pid" 2>/dev/null || true
+			;;
+		esac
+	done
+	sleep 1
+	for proc in /proc/[0-9]*; do
+		[ -r "$proc/cmdline" ] || continue
+		pid=${proc#/proc/}
+		[ "$pid" = "$_now" ] && continue
+		cmd=$(tr '\\0' ' ' < "$proc/cmdline" 2>/dev/null)
+		[ -n "$cmd" ] || continue
+		case "$cmd" in
+		*_hold*|*"simulate-location"*" set"*|*"developer dvt simulate-location"*)
+			kill -KILL "$pid" 2>/dev/null || true
+			;;
+		esac
+	done
+}
+
+cleanup_stale_ios_wifi_tunneld() {
+	_now=$$
+	for proc in /proc/[0-9]*; do
+		[ -r "$proc/cmdline" ] || continue
+		pid=${proc#/proc/}
+		[ "$pid" = "$_now" ] && continue
+		cmd=$(tr '\\0' ' ' < "$proc/cmdline" 2>/dev/null)
+		[ -n "$cmd" ] || continue
+		case "$cmd" in
+		*"remote tunneld"*|*"pymobiledevice3"*" tunneld"*)
+			kill -TERM "$pid" 2>/dev/null || true
+			;;
+		esac
+	done
+	if command -v fuser >/dev/null 2>&1; then
+		fuser -k -TERM 49151/tcp >/dev/null 2>&1 || true
+	fi
+	sleep 1
+	for proc in /proc/[0-9]*; do
+		[ -r "$proc/cmdline" ] || continue
+		pid=${proc#/proc/}
+		[ "$pid" = "$_now" ] && continue
+		cmd=$(tr '\\0' ' ' < "$proc/cmdline" 2>/dev/null)
+		[ -n "$cmd" ] || continue
+		case "$cmd" in
+		*"remote tunneld"*|*"pymobiledevice3"*" tunneld"*)
+			kill -KILL "$pid" 2>/dev/null || true
+			;;
+		esac
+	done
+	if command -v fuser >/dev/null 2>&1; then
+		fuser -k -KILL 49151/tcp >/dev/null 2>&1 || true
+	fi
+}
+
+cleanup_stale_ios_wifi_loc() {
+	cleanup_stale_ios_wifi_holders
+	cleanup_stale_ios_wifi_tunneld
+}
+
+"""
+
+
+def _cleanup_command(*, holders: bool = True, tunneld: bool = True) -> str:
+    calls = []
+    if holders:
+        calls.append("cleanup_stale_ios_wifi_holders")
+    if tunneld:
+        calls.append("cleanup_stale_ios_wifi_tunneld")
+    if not calls:
+        calls.append("cleanup_stale_ios_wifi_loc")
+    script = _stale_process_cleanup_shell() + "\n".join(calls) + "\n"
+    return "/bin/sh -c " + shlex.quote(script)
+
+
 def _procd_unit(executable: str, state_dir: Path, interface: str | None, binary: str, *, require_auth: bool, port: int | None = None) -> str:
     command = _serve_command(executable, state_dir, interface, binary, require_auth=require_auth, port=port)
     tunneld = _tunneld_command(binary)
@@ -175,19 +262,25 @@ def _procd_unit(executable: str, state_dir: Path, interface: str | None, binary:
         "\tdone\n"
         "}\n"
         "\n"
-        "start_service() {\n"
+        + _stale_process_cleanup_shell()
+        + "start_service() {\n"
+        "\tcleanup_stale_ios_wifi_loc\n"
         "\tsync_lockdown\n"
         "\tif [ -x /etc/init.d/usbmuxd ]; then\n"
         "\t\t/etc/init.d/usbmuxd restart >/dev/null 2>&1 || /etc/init.d/usbmuxd start >/dev/null 2>&1 || true\n"
         "\tfi\n"
         "\tprocd_open_instance tunneld\n"
         f"\tprocd_set_param command {tunneld}\n"
-        "\tprocd_set_param respawn 3600 5 5\n"
+        "\tprocd_set_param respawn 3600 10 3\n"
         "\tprocd_close_instance\n"
         "\tprocd_open_instance\n"
         f"\tprocd_set_param command {command}\n"
-        "\tprocd_set_param respawn 3600 5 5\n"
+        "\tprocd_set_param respawn 3600 10 3\n"
         "\tprocd_close_instance\n"
+        "}\n"
+        "\n"
+        "stop_service() {\n"
+        "\tcleanup_stale_ios_wifi_loc\n"
         "}\n"
     )
 
@@ -210,8 +303,10 @@ def _systemd_unit(executable: str, state_dir: Path, interface: str | None, binar
         "\n"
         "[Service]\n"
         "Type=simple\n"
+        f"ExecStartPre={_cleanup_command(holders=True, tunneld=False)}\n"
         f"ExecStartPre={pre}\n"
         f"ExecStart={command}\n"
+        f"ExecStop={_cleanup_command(holders=True, tunneld=False)}\n"
         "Restart=always\n"
         "RestartSec=5\n"
         "StartLimitIntervalSec=300\n"
@@ -232,7 +327,9 @@ def _systemd_tunneld_unit(binary: str) -> str:
         "\n"
         "[Service]\n"
         "Type=simple\n"
+        f"ExecStartPre={_cleanup_command(holders=False, tunneld=True)}\n"
         f"ExecStart={command}\n"
+        f"ExecStop={_cleanup_command(holders=False, tunneld=True)}\n"
         "Restart=always\n"
         "RestartSec=5\n"
         "StartLimitIntervalSec=300\n"
@@ -258,10 +355,16 @@ def _openrc_unit(executable: str, state_dir: Path, interface: str | None, binary
         "\tuse avahi-daemon usbmuxd\n"
         "}\n"
         "\n"
-        "start_pre() {\n"
+        + _stale_process_cleanup_shell()
+        + "start_pre() {\n"
+        "\tcleanup_stale_ios_wifi_holders\n"
         f"\tmkdir -p {persist} /var/lib/lockdown\n"
         f"\tchmod 700 {persist} 2>/dev/null || true\n"
         f"\tcp -a {state_dir / 'lockdown'}/*.plist /var/lib/lockdown/ 2>/dev/null || true\n"
+        "}\n"
+        "\n"
+        "stop_post() {\n"
+        "\tcleanup_stale_ios_wifi_holders\n"
         "}\n"
         "\n"
         f"command={shlex.quote(command.split()[0])}\n"
@@ -278,8 +381,17 @@ def _openrc_tunneld_unit(binary: str) -> str:
         "command_background=yes\n"
         'pidfile="/run/ios-wifi-loc-tunneld.pid"\n'
         "\n"
-        "depend() {\n"
+        + _stale_process_cleanup_shell()
+        + "depend() {\n"
         "\tneed net\n"
+        "}\n"
+        "\n"
+        "start_pre() {\n"
+        "\tcleanup_stale_ios_wifi_tunneld\n"
+        "}\n"
+        "\n"
+        "stop_post() {\n"
+        "\tcleanup_stale_ios_wifi_tunneld\n"
         "}\n"
         "\n"
         f"command={shlex.quote(parts[0])}\n"
