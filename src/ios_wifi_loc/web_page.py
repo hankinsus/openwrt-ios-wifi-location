@@ -15,11 +15,11 @@ PAGE = r"""<!DOCTYPE html>
 * { margin:0; padding:0; box-sizing:border-box; }
 html { -webkit-text-size-adjust:100%; }
 body { font-family:-apple-system,system-ui,sans-serif; background:var(--bg); color:var(--text); overflow-x:hidden; }
-#app, #login-card { max-width:720px; width:100%; margin:0 auto; }
-#app { padding:0 16px 24px; }
-.map-wrap { width:100%; border-radius:12px; overflow:hidden; margin-top:12px; }
-#map { height:50vh; width:100%; min-height:250px; background:#d8d8dc; }
-.panel { padding:16px 0; width:100%; margin:0 auto 8px auto; }
+#login-card { max-width:720px; width:100%; margin:0 auto; padding:16px; }
+#app { width:100%; max-width:none; margin:0; padding:0 0 16px; }
+.map-wrap { width:100%; max-width:100%; margin:0; border-radius:0; overflow:hidden; position:relative; }
+#map { height:420px; width:100%; min-height:380px; background:#d8d8dc; }
+.panel { padding:16px; max-width:720px; width:100%; margin:0 auto 8px auto; }
 .card { background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); overflow:hidden; }
 .card h3 { font-size:15px; font-weight:600; margin-bottom:10px; }
 .coords { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:14px; color:#333; padding:8px 12px; background:var(--bg); border-radius:8px; word-break:break-all; }
@@ -73,10 +73,14 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .modal { background:#fff; border-radius:16px; padding:20px; width:100%; max-width:340px; }
 .modal h3 { font-size:17px; font-weight:600; margin-bottom:16px; text-align:center; }
 .modal input { width:100%; padding:12px; border:1px solid #d1d1d6; border-radius:10px; font-size:15px; outline:none; margin-bottom:12px; }
-.footer-card { text-align:center; padding:24px 16px; background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); margin-top:16px; }
-.footer-brand { font-weight:600; font-size:15px; color:var(--text); margin-bottom:4px; }
+.footer-card { text-align:center; padding:14px 16px; background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); margin:8px 0 0 0; }
+.footer-brand { font-weight:600; font-size:15px; color:var(--text); margin-bottom:0; }
 .footer-version { font-size:12px; color:var(--gray); margin-bottom:8px; font-family:ui-monospace,Menlo,monospace; font-weight:700; }
 .bad { color:var(--red); font-size:13px; margin-top:8px; }
+#action-error { margin:8px 0 0 0; }
+#action-error:empty { display:none; margin:0; height:0; padding:0; }
+#logout-wrap { margin-top:8px; }
+#logout-wrap[hidden] { display:none; margin:0; }
 #map-fallback { display:none; padding:24px 16px; text-align:center; color:var(--gray); font-size:13px; }
 .btn, .presets button, .layer-btn, .copy-btn, .fav-del {
   -webkit-tap-highlight-color: transparent;
@@ -112,14 +116,19 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .device-info .device-status { margin-top:0; min-height:0; width:100%; }
 .device-info .device-status .badge { margin-right:0; display:inline-block; white-space:normal; overflow-wrap:anywhere; word-break:break-word; max-width:100%; line-height:1.35; }
 .badge-pick { background:var(--blue); color:#fff; flex-shrink:0; }
+.badge-connected { background:#0b7a32; color:#fff; flex-shrink:0; }
+.badge-disconnected { background:#fff3cd; color:#8a6d00; flex-shrink:0; }
 @media (max-width:420px) {
   .device-info-head { align-items:center; }
 }
+@media (max-width:1024px) {
+  #map { height:36vh; min-height:280px; max-height:400px; }
+}
 @media (max-width:600px) {
-  #app, #login-card { max-width:100%; }
-  #app { padding:0 12px 20px; }
-  .panel { padding:12px 0; }
-  #map { height:42vh; min-height:220px; }
+  #login-card { max-width:100%; padding:12px; }
+  #app { padding:0 0 16px; }
+  .panel { padding:12px; }
+  #map { height:38vh; min-height:220px; max-height:340px; }
   .btn { min-height:44px; }
   .btn-sm { min-height:36px; }
   .device-select { width:100%; }
@@ -169,7 +178,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
       <div id="device-info" class="device-info" hidden>
         <div class="device-info-head">
           <div class="device-info-title" id="device-info-title"></div>
-          <span class="badge badge-pick" id="device-info-picked" hidden>已选择</span>
+          <span class="badge badge-disconnected" id="device-info-picked" hidden>未连接</span>
         </div>
         <div class="device-info-meta" id="device-info-udid"></div>
         <div id="device-status" class="device-status"></div>
@@ -283,7 +292,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
     </div>
 
     <div class="footer-card">
-      <div class="footer-brand">OpenWrt 无线虚拟定位 · v0.4.5</div>
+      <div class="footer-brand">OpenWrt 无线虚拟定位 · v0.4.6</div>
     </div>
     <p id="action-error" class="bad"></p>
     <p class="notice" id="logout-wrap" hidden><button class="btn btn-sm btn-secondary" id="logout" type="button">退出</button></p>
@@ -440,7 +449,12 @@ function paintDeviceSelect(data) {
     bits.push(current.udid);
     if (current.host) bits.push(current.host);
     if ($("device-info-udid")) $("device-info-udid").textContent = bits.join(" ");
-    if (picked) picked.hidden = false;
+    if (picked) {
+      const connected = !!(current.tunnel_connected || current.tunnel_ready);
+      picked.hidden = false;
+      picked.textContent = connected ? "已连接" : "未连接";
+      picked.className = "badge " + (connected ? "badge-connected" : "badge-disconnected");
+    }
     if (box) {
       const badge = document.createElement("span");
       const waiting = (current.waiting_reconnect || current.waiting_for_wifi) && current.watchdog_active;
@@ -582,6 +596,7 @@ function switchLayer(name) {
 
 function paint(data) {
   lastPayload = data || {};
+  const ready = !!(data && data.tunneld && data.tunneld.reachable);
   paintDeviceSelect(data);
   if (data.selected && data.selected.udid) $("udid").value = data.selected.udid;
   if (data.selected && data.selected.transport) $("transport").value = data.selected.transport;

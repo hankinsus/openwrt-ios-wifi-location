@@ -335,10 +335,13 @@ def run_hold(store: StateStore, args: object) -> int:
                         _sleep(settle, stopped)
                     if stopped():
                         break
+            argv = location_argv(binary, target, "set", profile, lat, lon, use_tunnel=use_tunnel)
             child = spawn_child(argv, log_out, log_err, rotate=(attempt == 0))
             offset_err = log_err.stat().st_size if log_err.exists() else 0
             offset_out = log_out.stat().st_size if log_out.exists() else 0
             started_sig = tunnel_signature(tunnel_endpoint_for(udid)) if use_tunnel else None
+            saw_outage = False
+            outage_since: float | None = None
             _update_session(
                 store,
                 udid,
@@ -389,6 +392,9 @@ def run_hold(store: StateStore, args: object) -> int:
                     info = query_tunneld()
                     reason = classify_tunnel(udid, started_sig, info)
                     if reason == "unreachable":
+                        if outage_since is None:
+                            outage_since = now
+                        saw_outage = True
                         _update_session(
                             store,
                             udid,
@@ -401,8 +407,21 @@ def run_hold(store: StateStore, args: object) -> int:
                             last_error="tunneld unreachable",
                             desired=True,
                         )
-                    elif reason in {"missing", "changed"}:
-                        last_error = "tunnel endpoint changed" if reason == "changed" else "waiting_for_wifi"
+                        # A long outage leaves a hung DTX child; drop it and wait to respawn.
+                        if now - outage_since >= max(poll_interval(), 0.2):
+                            last_error = "tunneld unreachable"
+                            _kill_child(child)
+                            break
+                    elif reason in {"missing", "changed"} or (reason is None and saw_outage):
+                        # Tunnel list dropped, the endpoint changed, or tunneld came
+                        # back after an outage — even on the same address/port the
+                        # old simulate-location process is no longer trustworthy.
+                        if reason == "changed":
+                            last_error = "tunnel endpoint changed"
+                        elif reason is None and saw_outage:
+                            last_error = "tunnel recovered after outage"
+                        else:
+                            last_error = "waiting_for_wifi"
                         _kill_child(child)
                         break
                     elif reason is None and started_sig is None:

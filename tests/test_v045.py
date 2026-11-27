@@ -6,9 +6,9 @@ from ios_wifi_loc.windows_pair import render_windows_pair_bat
 
 
 def test_version_is_045():
-    assert __version__ == "0.4.5"
+    assert __version__ == "0.4.6"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.5" in html
+    assert "v0.4.6" in html
     assert "v0.4.4" not in html
 
 
@@ -31,8 +31,13 @@ def test_rendered_html_has_no_broken_windows_pair_fragment():
 def test_desktop_page_is_narrow_and_centered():
     html = render_page("csrf", no_auth=True)
     assert "max-width:720px" in html
-    assert "#app, #login-card" in html
+    assert ".panel" in html
+    assert "#login-card" in html
     assert "margin:0 auto" in html
+    # The map is full-bleed; only the card column stays 720px.
+    assert "#app { width:100%; max-width:none;" in html
+    assert ".map-wrap { width:100%; max-width:100%;" in html
+    assert "border-radius:0" in html
     assert "@media (max-width:600px)" in html
     assert "@media (min-width:601px) and (max-width:1024px)" not in html
     assert "@media (min-width:1025px)" not in html
@@ -47,7 +52,10 @@ def test_selected_device_card_is_three_rows():
     assert ".device-info-head { display:flex; justify-content:space-between; align-items:center;" in html
     assert 'id="device-info-title"' in html
     assert 'id="device-info-picked"' in html
-    assert ">已选择</span>" in html
+    assert ">未连接</span>" in html
+    assert "已连接" in html
+    assert "badge-connected" in html
+    assert "badge-disconnected" in html
     assert 'id="device-info-udid"' in html
     assert 'id="device-status"' in html
     assert (
@@ -71,7 +79,7 @@ def test_status_card_and_extra_copy_are_gone():
     assert "未能确认。进程还在不能代表手机坐标" not in html
     assert "仅供受信局域网使用" not in html
     assert "请勿把 19443 端口暴露到公网" not in html
-    assert "OpenWrt 无线虚拟定位 · v0.4.5" in html
+    assert "OpenWrt 无线虚拟定位 · v0.4.6" in html
     assert 'id="action-error"' in html
     for ident in ("command-line", "phone-line", "tunneld-line", "summary"):
         assert f'$("{ident}")' not in html

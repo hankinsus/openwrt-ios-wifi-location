@@ -16,9 +16,9 @@ def _js_function(html: str, name: str) -> str:
 
 
 def test_version_is_043():
-    assert __version__ == "0.4.5"
+    assert __version__ == "0.4.6"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.5" in html
+    assert "v0.4.6" in html
 
 
 def test_horizontal_device_card_layout():
@@ -27,7 +27,7 @@ def test_horizontal_device_card_layout():
     assert 'id="device-info-picked"' in html
     assert "flex-shrink:0" in html
     assert "badge-pick" in html
-    assert ">已选择</span>" in html
+    assert ">未连接</span>" in html or "已连接" in html
     assert "justify-content:space-between" in html
     assert "align-items:center" in html
     assert "@media (max-width:420px)" in html

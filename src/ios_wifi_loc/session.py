@@ -411,6 +411,73 @@ def resume_desired_targets(
         _RESUME_LOCK.release()
 
 
+def _target_is_holding(item: dict, session: dict | None, holding=None) -> bool:
+    session = session or {}
+    if holding is not None:
+        return bool(holding(item, session))
+    pid = session.get("pid")
+    return bool(isinstance(pid, int) and pid > 1 and holder_matches(pid))
+
+
+def pending_desired_targets(store: StateStore, *, holding=None) -> list[dict]:
+    data = store.load()
+    pending: list[dict] = []
+    for item in list_enabled_desired_targets(data):
+        if not _target_is_holding(item, _session_for(data, item["udid"]), holding=holding):
+            pending.append(item)
+    return pending
+
+
+def restore_interval() -> float:
+    raw = os.environ.get("IOS_WIFI_LOC_RESTORE_INTERVAL", "2")
+    try:
+        return max(0.05, min(30.0, float(raw)))
+    except ValueError:
+        return 2.0
+
+
+def restore_desired_loop(
+    stop,
+    store: StateStore,
+    binary: str,
+    *,
+    timeout: float = 20,
+    grace: float = 2,
+    interval: float | None = None,
+    apply=None,
+    holding=None,
+) -> list[dict]:
+    """Keep retrying saved coordinates until each UDID is holding again.
+
+    Intended as a serve() background thread: it waits for tunneld / the phone
+    to reappear instead of giving up on the first failed start-up attempt.
+    """
+    delay = restore_interval() if interval is None else max(0.05, interval)
+    last: list[dict] = []
+    wait = getattr(stop, "wait", None)
+    is_set = getattr(stop, "is_set", lambda: False)
+    while not is_set():
+        try:
+            last = resume_desired_targets(
+                store,
+                binary,
+                timeout=timeout,
+                grace=grace,
+                apply=apply,
+                holding=holding,
+            )
+        except Exception:
+            pass
+        pending = pending_desired_targets(store, holding=holding)
+        sleep_for = delay if pending else max(delay, 8.0)
+        if wait is not None:
+            if wait(sleep_for):
+                break
+        else:
+            break
+    return last
+
+
 def _sync_legacy_session(data: dict) -> None:
     selected = data.get("selected") or {}
     udid = selected.get("udid") if isinstance(selected, dict) else None

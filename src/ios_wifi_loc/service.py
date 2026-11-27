@@ -31,6 +31,7 @@ from ios_wifi_loc.session import (
     reconnect,
     refresh_devices,
     resume_desired_targets,
+    restore_desired_loop,
     select_device,
     set_location,
     status,
@@ -301,6 +302,17 @@ class Console:
         data["devices"] = [apply_device_metadata(item, names, selected) for item in devices]
         if selected.get("udid"):
             data["selected"] = apply_device_metadata(selected, names)
+        from ios_wifi_loc.tunneld import tunnel_endpoint_for
+
+        tunneld = data.get("tunneld") or {}
+        for item in data["devices"]:
+            connected = tunnel_endpoint_for(item["udid"], tunneld) is not None
+            item["tunnel_connected"] = connected
+            item["tunnel_ready"] = connected
+        if isinstance(data.get("selected"), dict) and data["selected"].get("udid"):
+            connected = tunnel_endpoint_for(data["selected"]["udid"], tunneld) is not None
+            data["selected"]["tunnel_connected"] = connected
+            data["selected"]["tunnel_ready"] = connected
         data["desired_targets"] = data.get("desired_targets") or list_enabled_desired_targets(state)
         data["pairing"] = enrich_pairing(list_pairing(self.store.directory, runtime_dir=runtime_lockdown_dir()), state)
         data["device_names"] = names
@@ -842,8 +854,8 @@ def serve(
     console.log(f"监听 {bind} {server.server_address[1]}")
     if should_restore:
         restorer = threading.Thread(
-            target=resume_desired_targets,
-            args=(store, binary),
+            target=restore_desired_loop,
+            args=(stop, store, binary),
             kwargs={"timeout": timeout, "grace": grace},
             daemon=True,
         )
