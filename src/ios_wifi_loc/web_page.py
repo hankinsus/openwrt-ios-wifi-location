@@ -96,10 +96,18 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .pair-step .pair-cmds { margin-top:8px; user-select:all; }
 .copy-btn { flex:none; min-width:auto; margin-left:auto; }
 
-.device-info { margin-top:10px; background:#e8f1ff; border:1px solid var(--blue); border-radius:10px; padding:12px; }
-.device-info-title { font-size:15px; font-weight:600; }
-.device-info-meta { font-size:12px; color:#3a3a3c; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-top:4px; word-break:break-all; }
-.device-info .device-status { margin-top:8px; }
+.device-info { margin-top:10px; background:#e8f1ff; border:1px solid var(--blue); border-radius:10px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px 12px; flex-wrap:wrap; }
+.device-info-main { flex:1; min-width:0; }
+.device-info-title { font-size:15px; font-weight:600; line-height:1.3; }
+.device-info-meta { font-size:11px; color:#3a3a3c; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-top:3px; word-break:break-all; }
+.device-info-pills { display:flex; align-items:center; gap:6px; flex-shrink:0; flex-wrap:wrap; }
+.device-info .device-status { margin-top:0; min-height:0; font-size:inherit; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.device-info .device-status .badge { margin-right:0; }
+.badge-pick { background:var(--blue); color:#fff; }
+@media (max-width:420px) {
+  .device-info { align-items:flex-start; }
+  .device-info-pills { width:100%; }
+}
 .pair-group { background:var(--bg); border-radius:10px; padding:12px; margin-bottom:8px; }
 .pair-group-head { font-size:14px; font-weight:600; margin-bottom:8px; }
 .pair-file { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:12px; }
@@ -143,9 +151,13 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
       </div>
       <select id="device-select" class="field device-select" aria-label="选择设备"></select>
       <div id="device-info" class="device-info" hidden>
-        <div class="device-info-title" id="device-info-title"></div>
-        <div class="device-info-meta" id="device-info-udid"></div>
-        <div id="device-status" class="device-status"></div>
+        <div class="device-info-main">
+          <div class="device-info-title" id="device-info-title"></div>
+          <div class="device-info-meta" id="device-info-udid"></div>
+        </div>
+        <div class="device-info-pills" id="device-info-pills">
+          <div id="device-status" class="device-status"></div>
+        </div>
       </div>
       <div id="tunneld-line" class="notice" style="text-align:left;margin:8px 0 0 0"></div>
       <details id="manual-device">
@@ -188,22 +200,9 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
     </div>
 
     <div class="card">
-      <h3>输入坐标</h3>
-      <p class="notice" style="text-align:left;margin:0 0 8px 0">按 WGS-84 填写纬度与经度，或在一格里输入「纬度, 经度」，然后点「跳转」立刻把地图标到该位置并设为目标坐标。</p>
-      <div class="input-row">
-        <input id="coord-lat" inputmode="decimal" placeholder="纬度  如 35.6812" aria-label="纬度" autocomplete="off">
-        <input id="coord-lon" inputmode="decimal" placeholder="经度  如 139.7671" aria-label="经度" autocomplete="off">
-      </div>
-      <div class="input-row">
-        <input id="coord-pair" placeholder="纬度, 经度  例如 35.6812, 139.7671" aria-label="纬度, 经度" autocomplete="off">
-        <button class="btn btn-primary" id="coord-go" type="button" style="flex:none;min-width:88px">跳转</button>
-      </div>
-    </div>
-
-    <div class="card">
       <h3>搜索地点</h3>
       <div class="input-row">
-        <input id="searchInput" placeholder="输入地名（如: 东京车站）">
+        <input id="searchInput" placeholder="输入地名（如：东京车站）或坐标（如：35.6812, 139.7671）" aria-label="搜索地点或坐标">
         <button class="btn btn-secondary" id="search" type="button" style="flex:none;min-width:56px">搜索</button>
       </div>
     </div>
@@ -344,7 +343,7 @@ pymobiledevice3 lockdown wifi-connections on</pre>
 
     <div class="footer-card">
       <div class="footer-brand">OpenWrt 无线虚拟定位</div>
-      <div class="footer-version">v0.4.2</div>
+      <div class="footer-version">v0.4.3</div>
       <p class="notice">仅供受信局域网使用。请勿把 19443 端口暴露到公网。</p>
     </div>
     <div class="status" id="status">在地图上选好位置后点击「设置定位」，然后在手机地图确认</div>
@@ -471,12 +470,14 @@ function paintDeviceSelect(data) {
   box.replaceChildren();
   if (current) {
     if (info) info.hidden = false;
-    if ($("device-info-title")) $("device-info-title").textContent = deviceTitle(current);
+    const name = current.name || "iPhone";
+    const title = name + (current.product_version ? (" iOS " + current.product_version) : "");
+    if ($("device-info-title")) $("device-info-title").textContent = title;
     const bits = [];
     if (current.transport || current.connection) bits.push(current.transport || current.connection);
     bits.push(current.udid);
     if (current.host) bits.push(current.host);
-    if ($("device-info-udid")) $("device-info-udid").textContent = bits.join("  ·  ");
+    if ($("device-info-udid")) $("device-info-udid").textContent = bits.join(" ");
     const badge = document.createElement("span");
     const waiting = (current.waiting_reconnect || current.waiting_for_wifi) && current.watchdog_active;
     const holding = current.holding || current.session_alive || current.desired;
@@ -484,6 +485,10 @@ function paintDeviceSelect(data) {
     const statusText = deviceStatusText(current, ready);
     badge.textContent = statusText === "隧道就绪" ? "隧道已就绪" : statusText;
     box.appendChild(badge);
+    const picked = document.createElement("span");
+    picked.className = "badge badge-pick";
+    picked.textContent = "已选择";
+    box.appendChild(picked);
   } else {
     if (info) info.hidden = !devices.length;
     if ($("device-info-title")) $("device-info-title").textContent = devices.length ? "请选择一台 iPhone" : "未发现设备";
@@ -797,9 +802,44 @@ function parseMapUrl(text) {
   }
   return null;
 }
+function parseCoordQuery(raw) {
+  const text = String(raw || "").trim();
+  if (!text) return null;
+  const normalized = text.replace(/[，、；;]/g, ",").replace(/[°º]/g, " ").replace(/\s+/g, " ").trim();
+  const num = "([+-]?\\d+(?:\\.\\d+)?)";
+  const hemiLat = "([NSns])";
+  const hemiLon = "([EWew])";
+  let a = null, o = null;
+  let m = normalized.match(new RegExp("^" + num + "\\s*" + hemiLat + "\\s*[,\\s]+\\s*" + num + "\\s*" + hemiLon + "$"));
+  if (m) {
+    a = parseFloat(m[1]); if (/[Ss]/.test(m[2])) a = -Math.abs(a); if (/[Nn]/.test(m[2])) a = Math.abs(a);
+    o = parseFloat(m[3]); if (/[Ww]/.test(m[4])) o = -Math.abs(o); if (/[Ee]/.test(m[4])) o = Math.abs(o);
+  }
+  if (a == null) {
+    m = normalized.match(new RegExp("^" + hemiLat + "\\s*" + num + "\\s*[,\\s]+\\s*" + hemiLon + "\\s*" + num + "$"));
+    if (m) {
+      a = parseFloat(m[2]); if (/[Ss]/.test(m[1])) a = -Math.abs(a); if (/[Nn]/.test(m[1])) a = Math.abs(a);
+      o = parseFloat(m[4]); if (/[Ww]/.test(m[3])) o = -Math.abs(o); if (/[Ee]/.test(m[3])) o = Math.abs(o);
+    }
+  }
+  if (a == null) {
+    m = normalized.match(new RegExp("^" + num + "\\s*[,\\s]+\\s*" + num + "$"));
+    if (m) { a = parseFloat(m[1]); o = parseFloat(m[2]); }
+  }
+  if (a == null || o == null || !isFinite(a) || !isFinite(o)) return null;
+  if (Math.abs(a) > 90 && Math.abs(o) <= 90) { const t = a; a = o; o = t; }
+  if (Math.abs(a) > 90 || Math.abs(o) > 180) return null;
+  return {lat: a, lon: o};
+}
 async function searchPlace() {
   const q = $("searchInput").value.trim();
-  if (!q) return toast("请输入地名");
+  if (!q) return toast("请输入地名或坐标");
+  const parsed = parseCoordQuery(q);
+  if (parsed) {
+    moveTo(parsed.lat, parsed.lon, 15);
+    toast("已跳转到指定坐标", 2000, "ok");
+    return;
+  }
   toast("搜索中…");
   try {
     const r = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(q), {headers:{"Accept-Language":"zh-CN,zh;q=0.9,en;q=0.6"}});
@@ -1073,30 +1113,6 @@ $("parse-url").onclick = () => {
 $("search").onclick = searchPlace;
 $("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter") searchPlace(); });
 $("urlInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("parse-url").click(); });
-function parseCoordFields() {
-  const pair = ($("coord-pair") && $("coord-pair").value || "").trim();
-  const raw = pair || (($("coord-lat") && $("coord-lat").value || "").trim() + "," + ($("coord-lon") && $("coord-lon").value || "").trim());
-  const nums = raw.replace(/，/g, ",").split(/[\s,;]+/).map((p) => p.trim()).filter(Boolean).map(Number);
-  if (nums.length < 2 || !isFinite(nums[0]) || !isFinite(nums[1])) return null;
-  let a = nums[0], o = nums[1];
-  if (Math.abs(a) > 90 && Math.abs(o) <= 90) { const t = a; a = o; o = t; }
-  if (Math.abs(a) > 90 || Math.abs(o) > 180) return null;
-  return {lat: a, lon: o};
-}
-function jumpToTypedCoords() {
-  const parsed = parseCoordFields();
-  if (!parsed) return toast("请输入有效的纬度, 经度", 2500, "bad");
-  moveTo(parsed.lat, parsed.lon, 15);
-  if ($("coord-lat")) $("coord-lat").value = parsed.lat.toFixed(6);
-  if ($("coord-lon")) $("coord-lon").value = parsed.lon.toFixed(6);
-  if ($("coord-pair")) $("coord-pair").value = parsed.lat.toFixed(6) + ", " + parsed.lon.toFixed(6);
-  toast("已设为目标坐标", 2000, "ok");
-}
-if ($("coord-go")) $("coord-go").onclick = jumpToTypedCoords;
-["coord-lat","coord-lon","coord-pair"].forEach((id) => {
-  const node = $(id);
-  if (node) node.addEventListener("keydown", (e) => { if (e.key === "Enter") jumpToTypedCoords(); });
-});
 $("drop").onclick = () => $("plist-files").click();
 $("plist-files").onchange = async (e) => {
   readPlistFiles(e.target.files);

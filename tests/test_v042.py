@@ -10,9 +10,9 @@ def _order(*labels: str, html: str) -> None:
 
 
 def test_version_is_042():
-    assert __version__ == "0.4.2"
+    assert __version__ == "0.4.3"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.2" in html
+    assert "v0.4.3" in html
 
 
 def test_single_blue_device_card_and_manual_fallback_only():
@@ -54,20 +54,11 @@ def test_location_card_order_coordinate_input_and_pairing_badge():
         'id="device-select"',
         "选择目标位置",
         "我的收藏",
-        "输入坐标",
         "搜索地点",
         "粘贴地图链接",
         "iOS 快捷指令",
         "配对管理",
         html=html,
     )
-    assert 'id="coord-lat"' in html
-    assert 'id="coord-lon"' in html
-    assert 'id="coord-pair"' in html
-    assert 'id="coord-go"' in html
-    assert ">跳转<" in html
-    assert "function jumpToTypedCoords()" in html
-    assert "function parseCoordFields()" in html
-    assert "已设为目标坐标" in html
     assert "共享系统配置" not in html
     assert "pair-group" in html
