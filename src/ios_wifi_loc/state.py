@@ -16,7 +16,7 @@ class StateStore:
 
     def load(self) -> dict:
         if not self.path.exists():
-            return {"version": 1, "selected": None, "session": None, "discovery": []}
+            return {"version": 1, "selected": None, "session": None, "sessions": {}, "discovery": []}
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
@@ -28,6 +28,7 @@ class StateStore:
         data.setdefault("discovery", [])
         data.setdefault("favorites", [])
         data.setdefault("last_command", None)
+        data.setdefault("sessions", {})
         return data
 
     def save(self, data: dict) -> None:

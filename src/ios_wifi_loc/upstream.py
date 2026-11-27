@@ -80,10 +80,16 @@ def executable(binary: str) -> str:
     return binary
 
 
-def connection_flags(target: Target) -> list[str]:
+def connection_flags(target: Target, *, use_tunnel: bool = False) -> list[str]:
+    # iOS 17+ wireless location must go through tunneld with --tunnel <UDID>.
+    # --udid/--mobdev2 without a tunnel falls back to usbmux and fails.
     # --usbmux takes a socket address. A bare --usbmux would swallow the next
     # argument, so the default usbmux path passes only --udid.
     # --mobdev2-host and --mobdev2 are mutually exclusive in pymobiledevice3 11.63.1.
+    if use_tunnel:
+        flags = ["--tunnel", target.udid]
+        _reject_banned(flags)
+        return flags
     flags = ["--udid", target.udid]
     if target.transport == "usbmux":
         if target.usbmux_address:
@@ -112,6 +118,8 @@ def location_argv(
     profile: str,
     latitude: str | None = None,
     longitude: str | None = None,
+    *,
+    use_tunnel: bool = False,
 ) -> list[str]:
     if action not in {"set", "clear"}:
         raise PlanError("定位动作无效")
@@ -120,7 +128,7 @@ def location_argv(
     argv = [executable(binary), "developer"]
     if profile == "ios17":
         argv.append("dvt")
-    argv.extend(["simulate-location", action, *connection_flags(target)])
+    argv.extend(["simulate-location", action, *connection_flags(target, use_tunnel=use_tunnel)])
     if action == "set":
         if latitude is None or longitude is None:
             raise PlanError("缺少坐标")
@@ -199,3 +207,7 @@ def extract_product_version(text: str) -> str | None:
     if match:
         return match.group(1)
     return None
+
+
+def uses_wireless_tunnel(target: Target, profile: str) -> bool:
+    return profile == "ios17" and target.transport in {"mobdev2", "remotepairing"}

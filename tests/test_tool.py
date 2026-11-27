@@ -63,13 +63,22 @@ def cli(tmp_path):
     yield type("Cli", (), {"run": staticmethod(run), "logged": staticmethod(logged), "state": state, "env": env, "log": log})
     path = state / "state.json"
     if path.exists():
-        session = json.loads(path.read_text(encoding="utf-8")).get("session") or {}
-        pid = session.get("pid")
-        if isinstance(pid, int) and pid > 1:
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        pids = []
+        session = payload.get("session") or {}
+        if isinstance(session, dict) and isinstance(session.get("pid"), int):
+            pids.append(session["pid"])
+        sessions = payload.get("sessions") or {}
+        if isinstance(sessions, dict):
+            for item in sessions.values():
+                if isinstance(item, dict) and isinstance(item.get("pid"), int):
+                    pids.append(item["pid"])
+        for pid in pids:
+            if pid > 1:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
 
 def test_coords_and_identifiers():
@@ -169,8 +178,9 @@ def test_requires_explicit_select_and_rejects_injection(cli):
     assert all("simulate-location" not in item for item in cli.logged())
 
 
-def test_selects_requested_device_and_keeps_negative_coordinate(cli):
+def test_selects_requested_device_and_keeps_negative_coordinate(cli, tunneld_stub):
     cli.env["IOS_WIFI_LOC_FAKE_DEVICES"] = json.dumps([UDID, OTHER])
+    cli.env["IOS_WIFI_LOC_TUNNELD_URL"] = tunneld_stub
     listed, listing = cli.run(["devices"])
     assert listed.returncode == 0
     wifi = [item["udid"] for item in listing["details"]["devices"] if item["connection"] == "wifi"]
@@ -187,7 +197,9 @@ def test_selects_requested_device_and_keeps_negative_coordinate(cli):
     argv = calls[-1]
     assert OTHER in argv and UDID not in argv
     assert argv[argv.index("--") + 1 :] == ["40.6", "-74.006"]
-    assert "--remotepairing" in argv
+    assert "--tunnel" in argv
+    assert argv[argv.index("--tunnel") + 1] == OTHER
+    assert "--remotepairing" not in argv
 
 
 def test_pre17_short_set_and_legacy_refusal(cli):
@@ -424,3 +436,48 @@ def shutil_which(name: str):
     from shutil import which
 
     return which(name)
+
+
+def test_two_devices_hold_independent_locations(cli):
+    first, _ = cli.run(["select", "--udid", UDID, "--transport", "usbmux"])
+    assert first.returncode == 0
+    set_a, payload = cli.run(
+        ["set", "--profile", "ios17", "--latitude", "35.6812", "--longitude", "139.7671", "--startup-grace", "0.3"]
+    )
+    assert set_a.returncode == 0, payload
+    assert payload["code"] == "SET_HOLDING"
+    pid_a = payload["details"]["pid"]
+
+    second, _ = cli.run(["select", "--udid", OTHER, "--transport", "usbmux"])
+    assert second.returncode == 0
+    set_b, payload = cli.run(
+        ["set", "--profile", "ios17", "--latitude", "40.7128", "--longitude", "-74.0060", "--startup-grace", "0.3"]
+    )
+    assert set_b.returncode == 0, payload
+    assert payload["code"] == "SET_HOLDING"
+    pid_b = payload["details"]["pid"]
+    assert pid_a != pid_b
+    os.kill(pid_a, 0)
+    os.kill(pid_b, 0)
+
+    status_proc, status = cli.run(["status"])
+    assert status_proc.returncode == 0
+    sessions = {item["udid"]: item for item in status["details"]["sessions"]}
+    assert sessions[UDID]["alive"] is True
+    assert sessions[UDID]["latitude"] == "35.6812"
+    assert sessions[OTHER]["alive"] is True
+    assert sessions[OTHER]["longitude"] == "-74.006"
+    assert status["details"]["session_alive"] is True
+    assert status["details"]["session"]["udid"] == OTHER
+
+    cleared, payload = cli.run(["clear", "--profile", "ios17"])
+    assert cleared.returncode == 0, payload
+    os.kill(pid_a, 0)
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid_b, 0)
+
+    status_proc, status = cli.run(["status"])
+    sessions = {item["udid"]: item for item in status["details"]["sessions"]}
+    assert UDID in sessions and sessions[UDID]["alive"] is True
+    assert OTHER not in sessions
+    assert status["details"]["session_alive"] is False

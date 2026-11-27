@@ -20,7 +20,8 @@ from ios_wifi_loc.session import (
     smoke,
     status,
 )
-from ios_wifi_loc.install import install_files, preflight, uninstall_files
+from ios_wifi_loc.binary import DEFAULT_BINARY_NAME, resolve_binary
+from ios_wifi_loc.install import default_state_dir_for_root, install_files, preflight, uninstall_files
 from ios_wifi_loc.service import ServiceError, serve
 from ios_wifi_loc.state import StateError, StateStore
 
@@ -58,12 +59,16 @@ def _parser() -> argparse.ArgumentParser:
     serve_cmd.add_argument("--port", type=int, default=47321)
     serve_cmd.add_argument("--no-watch", action="store_true")
     serve_cmd.add_argument("--watch-interval", type=float, default=10)
+    auth = serve_cmd.add_mutually_exclusive_group()
+    auth.add_argument("--no-auth", action="store_true", default=None, help="局域网免密打开页面（默认）")
+    auth.add_argument("--require-auth", action="store_true", help="需要本机口令才能操作")
 
     install_cmd = sub.add_parser("install", help="安装到指定根目录，可逆")
     install_cmd.add_argument("--root", default="/")
     install_cmd.add_argument("--state-dir", default=argparse.SUPPRESS)
     install_cmd.add_argument("--interface", default=None, help="服务只绑定这块网卡；不指定则只监听 127.0.0.1")
     install_cmd.add_argument("--python", default=None, help="启动脚本里使用的 Python")
+    install_cmd.add_argument("--require-auth", action="store_true", help="服务需要口令；默认免密，仅供受信局域网")
     uninstall_cmd = sub.add_parser("uninstall", help="删除启动脚本")
     uninstall_cmd.add_argument("--root", default="/")
     uninstall_cmd.add_argument("--state-dir", default=argparse.SUPPRESS)
@@ -143,6 +148,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.timeout <= 0 or args.timeout > 120:
         return _emit(Outcome(False, "VALIDATION", 2, "超时必须大于 0 且不超过 120 秒。", {}), args.json)
+    if args.binary == DEFAULT_BINARY_NAME:
+        args.binary = resolve_binary(args.binary)
     try:
         store = StateStore(Path(args.state_dir) if args.state_dir else default_state_dir())
         if args.cmd == "doctor":
@@ -209,6 +216,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.port < 0 or args.port > 65535:
                 return _emit(Outcome(False, "VALIDATION", 2, "端口无效", {}), args.json)
             try:
+                require_auth = bool(args.require_auth)
                 serve(
                     store,
                     args.binary,
@@ -218,26 +226,29 @@ def main(argv: list[str] | None = None) -> int:
                     grace=args.startup_grace if hasattr(args, "startup_grace") else 2,
                     watch=not args.no_watch,
                     watch_interval=args.watch_interval,
+                    require_auth=require_auth,
                 )
             except ServiceError as exc:
                 outcome = Outcome(False, "SERVICE", 2, str(exc), {})
             else:
                 return 0
         elif args.cmd == "install":
-            state_dir = Path(args.state_dir) if args.state_dir else Path(args.root) / "var/lib/ios-wifi-loc"
+            state_dir = Path(args.state_dir) if args.state_dir else default_state_dir_for_root(Path(args.root))
             try:
                 report = install_files(
                     Path(args.root),
                     state_dir=state_dir,
                     executable=args.python,
                     interface=args.interface,
+                    binary=args.binary,
+                    require_auth=bool(getattr(args, "require_auth", False)),
                 )
             except ValueError as exc:
                 outcome = Outcome(False, "VALIDATION", 2, str(exc), {})
             else:
                 outcome = Outcome(True, "INSTALLED", 0, "已安装。口令只在状态目录的 web.secret，不要把它写进日志。", report)
         elif args.cmd == "uninstall":
-            state_dir = Path(args.state_dir) if args.state_dir else Path(args.root) / "var/lib/ios-wifi-loc"
+            state_dir = Path(args.state_dir) if args.state_dir else default_state_dir_for_root(Path(args.root))
             report = uninstall_files(Path(args.root), state_dir=state_dir, purge_state=args.purge_state)
             outcome = Outcome(True, "UNINSTALLED", 0, "已删除启动脚本。", report)
         elif args.cmd == "smoke":

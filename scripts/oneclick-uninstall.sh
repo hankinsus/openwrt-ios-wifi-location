@@ -49,6 +49,12 @@ fi
 if [ -z "$STATE" ]; then
     if [ -n "${IOS_WIFI_LOC_STATE_DIR:-}" ]; then
         STATE=$IOS_WIFI_LOC_STATE_DIR
+    elif [ -f "$ROOT/etc/openwrt_release" ]; then
+        if [ "$ROOT" = "/" ]; then
+            STATE=/etc/ios-wifi-loc
+        else
+            STATE=$ROOT/etc/ios-wifi-loc
+        fi
     elif [ "$ROOT" = "/" ]; then
         STATE=/var/lib/ios-wifi-loc
     else

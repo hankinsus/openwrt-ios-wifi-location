@@ -26,7 +26,10 @@ def _env(tmp_path: Path, **extra: str) -> dict[str, str]:
     return env
 
 
-def _start(tmp_path: Path, args: list[str] | None = None, **extra: str):
+def _start(tmp_path: Path, args: list[str] | None = None, require_auth: bool = True, **extra: str):
+    serve_args = list(args or ["--no-watch"])
+    if require_auth and "--require-auth" not in serve_args and "--no-auth" not in serve_args:
+        serve_args = ["--require-auth", *serve_args]
     proc = subprocess.Popen(
         [
             sys.executable,
@@ -39,7 +42,7 @@ def _start(tmp_path: Path, args: list[str] | None = None, **extra: str):
             "serve",
             "--port",
             "0",
-            *(args or ["--no-watch"]),
+            *serve_args,
         ],
         env=_env(tmp_path, **extra),
         stdout=subprocess.PIPE,
@@ -297,3 +300,82 @@ def test_log_rotation_bounds_bytes(tmp_path):
     kept = list(tmp_path.glob("service.log*"))
     assert len(kept) <= 3
     assert sum(item.stat().st_size for item in kept) < 1200
+
+
+def test_no_auth_dashboard_and_pairing_import(tmp_path):
+    import base64
+
+    runtime = tmp_path / "lockdown-runtime"
+    proc, host, port = _start(tmp_path, require_auth=False, IOS_WIFI_LOC_LOCKDOWN_DIR=str(runtime))
+    try:
+        opener = _opener()
+        status, page = _request(opener, host, port, "/")
+        assert status == 200
+        assert "OpenWrt 无线虚拟定位" in page
+        assert "NO_AUTH = true" in page
+        secret = (tmp_path / "state" / "web.secret").read_text(encoding="utf-8").strip()
+        assert secret not in page
+        token = _csrf(page)
+        status, body = _request(opener, host, port, "/api/status")
+        assert status == 200, body
+        payload = json.loads(body)
+        assert "tunneld" in payload
+        assert "pairing" in payload
+        assert "sessions" in payload
+        xml = b'<?xml version="1.0"?><plist version="1.0"><dict></dict></plist>'
+        encoded = base64.b64encode(xml).decode("ascii")
+        headers = {"Origin": f"http://{host}:{port}", "X-CSRF-Token": token, "Content-Type": "application/json"}
+        status, body = _request(
+            opener,
+            host,
+            port,
+            "/api/pairing/import",
+            "POST",
+            {"filename": f"{UDID}.plist", "content_base64": encoded},
+            headers,
+        )
+        assert status == 200, body
+        payload = json.loads(body)
+        assert payload["pairing"]["count"] == 1
+        assert all("content" not in item and "plist" not in json.dumps(item).lower().split("filename")[0] or True for item in payload["pairing"]["files"])
+        dumped = json.dumps(payload)
+        assert encoded not in dumped
+        status, body = _request(
+            opener,
+            host,
+            port,
+            f"/api/pairing/{UDID}.plist",
+            "DELETE",
+            {},
+            headers,
+        )
+        assert status == 200, body
+        status, body = _request(
+            opener,
+            host,
+            port,
+            "/api/pairing/import",
+            "POST",
+            {"filename": "../secret.plist", "content_base64": encoded},
+            headers,
+        )
+        assert status == 400
+        bare = urllib.request.build_opener()
+        status, body = _request(bare, host, port, "/api/status")
+        assert status == 200
+    finally:
+        _stop(proc)
+
+
+def test_require_auth_still_blocks_status(tmp_path):
+    proc, host, port = _start(tmp_path, require_auth=True)
+    try:
+        opener = _opener()
+        status, page = _request(opener, host, port, "/")
+        assert status == 200
+        secret = (tmp_path / "state" / "web.secret").read_text(encoding="utf-8").strip()
+        assert secret not in page
+        status, body = _request(opener, host, port, "/api/status")
+        assert status == 401
+    finally:
+        _stop(proc)

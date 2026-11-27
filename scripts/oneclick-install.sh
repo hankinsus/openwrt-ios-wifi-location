@@ -12,7 +12,7 @@ usage() {
 然后安装本工具和 pymobiledevice3，运行 preflight，并写入 procd 或 systemd。
 不修改路由、防火墙或 PassWall，不监听 0.0.0.0。口令文件权限是 0600，输出只给路径。
 编译依赖只在上游不能直接装上时才补。
-这条命令没有在真机 R4S 或 OpenWrt 上跑过。
+OpenWrt 上默认把状态和配对文件放在 /etc/ios-wifi-loc（可写闪存），并自动拉起 tunneld。局域网页面默认免密，请勿把 47321 端口暴露到公网。升级时会保留已有口令和收藏。
 EOF
 }
 
@@ -55,14 +55,12 @@ done
 if [ -z "$ROOT" ]; then
     ROOT=${IOS_WIFI_LOC_ROOT:-/}
 fi
-if [ -z "$STATE" ]; then
-    if [ -n "${IOS_WIFI_LOC_STATE_DIR:-}" ]; then
-        STATE=$IOS_WIFI_LOC_STATE_DIR
-    elif [ "$ROOT" = "/" ]; then
-        STATE=/var/lib/ios-wifi-loc
-    else
-        STATE=$ROOT/var/lib/ios-wifi-loc
-    fi
+STATE_SET=0
+if [ -n "$STATE" ]; then
+    STATE_SET=1
+elif [ -n "${IOS_WIFI_LOC_STATE_DIR:-}" ]; then
+    STATE=$IOS_WIFI_LOC_STATE_DIR
+    STATE_SET=1
 fi
 if [ -z "$PREFIX" ]; then
     if [ -n "${IOS_WIFI_LOC_PREFIX:-}" ]; then
@@ -107,6 +105,20 @@ elif [ -f "$ROOT/etc/debian_version" ] || { [ -f "$ROOT/etc/os-release" ] && gre
 else
     echo "只自动安装 OpenWrt（opkg 或 apk）和 Debian/Ubuntu（apt-get）。当前根目录不是这两种系统。" >&2
     exit 1
+fi
+
+if [ "$STATE_SET" -eq 0 ]; then
+    if [ "$KIND" = openwrt ]; then
+        if [ "$ROOT" = "/" ]; then
+            STATE=/etc/ios-wifi-loc
+        else
+            STATE=$ROOT/etc/ios-wifi-loc
+        fi
+    elif [ "$ROOT" = "/" ]; then
+        STATE=/var/lib/ios-wifi-loc
+    else
+        STATE=$ROOT/var/lib/ios-wifi-loc
+    fi
 fi
 
 BASE_PKGS="python3 python3-pip usbmuxd"
@@ -283,18 +295,76 @@ run_tool() {
     exit 1
 }
 
+
+migrate_state() {
+    old_state=
+    if [ "$ROOT" = "/" ]; then
+        old_state=/var/lib/ios-wifi-loc
+        old_lockdown=/var/lib/lockdown
+    else
+        old_state=$ROOT/var/lib/ios-wifi-loc
+        old_lockdown=$ROOT/var/lib/lockdown
+    fi
+    mkdir -p "$STATE" "$STATE/lockdown"
+    chmod 700 "$STATE" "$STATE/lockdown" 2>/dev/null || true
+    if [ -d "$old_state" ] && [ "$old_state" != "$STATE" ]; then
+        if [ -f "$old_state/web.secret" ] && [ ! -f "$STATE/web.secret" ]; then
+            cp "$old_state/web.secret" "$STATE/web.secret"
+            chmod 600 "$STATE/web.secret"
+            echo "已保留原来的口令文件。"
+        fi
+        if [ -f "$old_state/state.json" ] && [ ! -f "$STATE/state.json" ]; then
+            cp "$old_state/state.json" "$STATE/state.json"
+            chmod 600 "$STATE/state.json"
+            echo "已保留原来的收藏和设备选择。"
+        fi
+        if [ -d "$old_state/lockdown" ]; then
+            for f in "$old_state/lockdown"/*.plist; do
+                [ -f "$f" ] || continue
+                base=${f##*/}
+                if [ ! -f "$STATE/lockdown/$base" ]; then
+                    cp "$f" "$STATE/lockdown/$base"
+                    chmod 600 "$STATE/lockdown/$base"
+                fi
+            done
+        fi
+    fi
+    if [ -d "$old_lockdown" ]; then
+        mkdir -p "$STATE/lockdown"
+        for f in "$old_lockdown"/*.plist; do
+            [ -f "$f" ] || continue
+            base=${f##*/}
+            if [ ! -f "$STATE/lockdown/$base" ]; then
+                cp "$f" "$STATE/lockdown/$base"
+                chmod 600 "$STATE/lockdown/$base"
+            fi
+        done
+    fi
+}
+
+echo "同步状态目录（升级时保留已有口令和配对文件）。"
+migrate_state
+
 echo "运行 preflight。"
 run_tool -m ios_wifi_loc preflight --root "$ROOT"
+
+PMBIN=pymobiledevice3
+if [ -d "$PREFIX/venv/bin" ]; then
+    PMBIN=$PREFIX/venv/bin/pymobiledevice3
+elif [ -x "$PREFIX/pydeps/bin/pymobiledevice3" ] || [ -e "$PREFIX/pydeps/bin/pymobiledevice3" ]; then
+    PMBIN=$PREFIX/pydeps/bin/pymobiledevice3
+fi
 
 install_args="--root $ROOT --python $PYBIN"
 if [ -n "$INTERFACE" ]; then
     install_args="$install_args --interface $INTERFACE"
 fi
 # shellcheck disable=SC2086
-report=$(run_tool -m ios_wifi_loc --json --state-dir "$STATE" install $install_args)
+report=$(run_tool -m ios_wifi_loc --json --state-dir "$STATE" --binary "$PMBIN" install $install_args)
 secret_path=$(printf '%s' "$report" | "$BASEPY" -c 'import json,sys; print(json.load(sys.stdin)["details"]["secret_path"])')
-echo "已写入启动脚本。口令文件：$secret_path"
-echo "口令内容没有打印。文件权限应为 0600。"
+echo "已写入启动脚本。状态目录：$STATE"
+echo "口令文件：$secret_path（默认免密，不需要输入；文件权限应为 0600，需要时可用 --require-auth）。"
+echo "口令内容没有打印。请勿把 47321 端口暴露到公网。"
 
 if [ "$ROOT" = "/" ]; then
     if [ -x /etc/init.d/ios-wifi-loc ]; then

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import binascii
 import json
 import os
 import secrets
@@ -14,6 +15,13 @@ from ios_wifi_loc.doctor import _ipv4_ioctl
 from ios_wifi_loc.guide import pair_guide
 from ios_wifi_loc.identifiers import IdentifierError, validate_name
 from ios_wifi_loc.logs import append_log
+from ios_wifi_loc.pairing import (
+    PairingError,
+    default_runtime_lockdown,
+    delete_plist,
+    import_plist,
+    list_pairing,
+)
 from ios_wifi_loc.session import (
     clear_location,
     reconnect,
@@ -28,12 +36,66 @@ from ios_wifi_loc.web_page import render_page
 DEFAULT_PORT = 47321
 
 
+
+def _devices_with_sessions(devices: list, sessions: list) -> list[dict]:
+    by_udid = {item.get("udid"): dict(item) for item in sessions if isinstance(item, dict) and item.get("udid")}
+    result = []
+    seen = set()
+    for device in devices:
+        if not isinstance(device, dict) or not device.get("udid"):
+            continue
+        item = dict(device)
+        sess = by_udid.get(item["udid"])
+        if sess:
+            item["session_alive"] = bool(sess.get("alive"))
+            item["holding"] = bool(sess.get("holding") or sess.get("alive"))
+            item["latitude"] = sess.get("latitude")
+            item["longitude"] = sess.get("longitude")
+        else:
+            item.setdefault("session_alive", False)
+            item.setdefault("holding", False)
+        result.append(item)
+        seen.add(item["udid"])
+    for udid, sess in by_udid.items():
+        if udid in seen:
+            continue
+        result.append(
+            {
+                "udid": udid,
+                "name": None,
+                "connection": "wifi",
+                "transport": "mobdev2",
+                "source": "session",
+                "host": None,
+                "product_version": None,
+                "tunnel_ready": False,
+                "session_alive": bool(sess.get("alive")),
+                "holding": bool(sess.get("holding") or sess.get("alive")),
+                "latitude": sess.get("latitude"),
+                "longitude": sess.get("longitude"),
+            }
+        )
+    return result
+
+
 class ServiceError(ValueError):
     pass
 
 
 def secret_path(state_dir: Path) -> Path:
     return state_dir / "web.secret"
+
+
+def runtime_lockdown_dir() -> Path | None:
+    env = os.environ.get("IOS_WIFI_LOC_LOCKDOWN_DIR")
+    if env == "":
+        return None
+    if env:
+        return Path(env)
+    path = default_runtime_lockdown()
+    if path.is_dir() and os.access(path, os.W_OK):
+        return path
+    return None
 
 
 def load_or_create_secret(path: Path) -> str:
@@ -89,12 +151,13 @@ class RateLimiter:
 
 
 class Console:
-    def __init__(self, store: StateStore, binary: str, secret: str, *, timeout: float = 20, grace: float = 2) -> None:
+    def __init__(self, store: StateStore, binary: str, secret: str, *, timeout: float = 20, grace: float = 2, require_auth: bool = False) -> None:
         self.store = store
         self.binary = binary
         self.secret = secret
         self.timeout = timeout
         self.grace = grace
+        self.require_auth = require_auth
         self.sessions: dict[str, float] = {}
         self.rates = RateLimiter()
         self.log_path = store.directory / "service.log"
@@ -106,7 +169,9 @@ class Console:
         current = status(self.store)
         data = dict(current.details)
         data["summary"] = current.summary
-        data["devices"] = self.store.load().get("discovery") or []
+        data["devices"] = _devices_with_sessions(self.store.load().get("discovery") or [], data.get("sessions") or [])
+        data["pairing"] = list_pairing(self.store.directory, runtime_dir=runtime_lockdown_dir())
+        data["require_auth"] = self.require_auth
         if extra:
             data.update(extra)
         return data
@@ -161,6 +226,8 @@ class Handler(BaseHTTPRequestHandler):
         return bool(token) and token == (self.headers.get("X-CSRF-Token") or "")
 
     def _session_ok(self) -> bool:
+        if not self.console.require_auth:
+            return True
         cookies = _cookies(self.headers.get("Cookie"))
         token = cookies.get("session", "")
         expiry = self.console.sessions.get(token)
@@ -169,12 +236,15 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return True
 
+    def _csrf_required(self) -> bool:
+        return self.console.require_auth
+
     def _client(self) -> str:
         return self.client_address[0]
 
-    def _read_json(self) -> dict:
+    def _read_json(self, max_length: int = 16384) -> dict:
         length = int(self.headers.get("Content-Length") or "0")
-        if length < 0 or length > 16384:
+        if length < 0 or length > max_length:
             raise ServiceError("请求体过大")
         raw = self.rfile.read(length) if length else b"{}"
         try:
@@ -192,7 +262,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/":
             cookies = _cookies(self.headers.get("Cookie"))
             csrf = cookies.get("csrf") or secrets.token_hex(16)
-            page = render_page(csrf).encode("utf-8")
+            page = render_page(csrf, no_auth=not self.console.require_auth).encode("utf-8")
             self._send(200, page, "text/html; charset=utf-8", {"Set-Cookie": f"csrf={csrf}; Path=/; SameSite=Strict"})
             return
         if not self._session_ok():
@@ -204,17 +274,38 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/guide":
             self._json(200, {"text": pair_guide()})
             return
+        if self.path == "/api/pairing":
+            self._json(200, self.console.payload())
+            return
         self._json(404, {"summary": "没有这个页面"})
 
+    def _post_guarded(self) -> bool:
+        if not self._host_ok():
+            return False
+        if self.console.require_auth:
+            return self._origin_ok() and self._csrf_ok()
+        origin = self.headers.get("Origin")
+        if origin and not self._origin_ok():
+            return False
+        if self._csrf_required() and not self._csrf_ok():
+            return False
+        # In no-auth mode a CSRF header is optional so LAN tools can call the API
+        # directly. If the browser sent one, it must still match the cookie.
+        token = self.headers.get("X-CSRF-Token")
+        if token and not self._csrf_ok():
+            return False
+        return True
+
     def do_POST(self) -> None:  # noqa: N802
-        if not self._host_ok() or not self._origin_ok() or not self._csrf_ok():
+        if not self._post_guarded():
             self._json(403, {"summary": "请求来源没有通过校验"})
             return
         if not self.console.rates.allow("post:" + self._client(), 60, 60):
             self._json(429, {"summary": "请求过于频繁"})
             return
         try:
-            body = self._read_json()
+            max_length = 400 * 1024 if self.path == "/api/pairing/import" else 16384
+            body = self._read_json(max_length=max_length)
             if self.path == "/api/login":
                 self._login(body)
                 return
@@ -245,11 +336,17 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/api/favorites":
                 self._add_favorite(body)
                 return
-            if self.path == "/api/location/start":
+            if self.path in {"/api/location/start", "/api/set"}:
                 self._start(body)
                 return
-            if self.path == "/api/location/clear":
+            if self.path in {"/api/location/clear", "/api/clear"}:
                 self._clear(body)
+                return
+            if self.path == "/api/favorites/delete":
+                self._delete_favorite(body)
+                return
+            if self.path == "/api/pairing/import":
+                self._import_pairing(body)
                 return
             if self.path == "/api/connection/check":
                 outcome = reconnect(
@@ -268,7 +365,7 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 self._json(200, self.console.payload({"summary": outcome.summary}))
                 return
-        except (ServiceError, IdentifierError, CoordError) as exc:
+        except (ServiceError, IdentifierError, CoordError, PairingError) as exc:
             self._json(400, {"summary": str(exc)})
             return
         self._json(404, {"summary": "没有这个操作"})
@@ -336,6 +433,67 @@ class Handler(BaseHTTPRequestHandler):
         self._json(200 if outcome.ok else 400, self.console.payload({"summary": outcome.summary}))
 
 
+
+    def _delete_favorite(self, body: dict) -> None:
+        target = str(body.get("id") or "")
+        if not target:
+            raise ServiceError("缺少收藏编号")
+        data = self.console.store.load()
+        favorites = [item for item in (data.get("favorites") or []) if item.get("id") != target]
+        if len(favorites) == len(data.get("favorites") or []):
+            raise ServiceError("没有这个收藏")
+        data["favorites"] = favorites
+        self.console.store.save(data)
+        self._json(200, self.console.payload())
+
+    def _import_pairing(self, body: dict) -> None:
+        files = body.get("files")
+        if files is None and body.get("filename"):
+            files = [body]
+        if not isinstance(files, list) or not files:
+            raise ServiceError("请上传至少一个 .plist 文件")
+        if len(files) > 8:
+            raise ServiceError("一次最多导入 8 个文件")
+        imported = []
+        runtime = runtime_lockdown_dir()
+        for item in files:
+            if not isinstance(item, dict):
+                raise ServiceError("文件项无效")
+            filename = str(item.get("filename") or "")
+            raw = item.get("content_base64") or item.get("content") or ""
+            if not isinstance(raw, str) or not raw.strip():
+                raise ServiceError(f"{filename or '文件'} 内容是空的")
+            import base64
+            try:
+                data = base64.b64decode(raw, validate=True)
+            except (ValueError, binascii.Error) as exc:
+                raise ServiceError("不是有效的 Base64 内容") from exc
+            report = import_plist(self.console.store.directory, filename, data, runtime_dir=runtime)
+            imported.append(report["imported"])
+        self.console.log("已导入配对文件 " + ", ".join(imported))
+        self._json(200, self.console.payload({"summary": "已导入 " + "、".join(imported), "imported": imported}))
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        if not self._post_guarded():
+            self._json(403, {"summary": "请求来源没有通过校验"})
+            return
+        if not self._session_ok():
+            self._json(401, {"summary": "需要先输入本机口令"})
+            return
+        prefix = "/api/pairing/"
+        if not self.path.startswith(prefix) or self.path == "/api/pairing/import":
+            self._json(404, {"summary": "没有这个操作"})
+            return
+        from urllib.parse import unquote
+        name = unquote(self.path[len(prefix):])
+        try:
+            report = delete_plist(self.console.store.directory, name, runtime_dir=runtime_lockdown_dir())
+        except PairingError as exc:
+            self._json(400, {"summary": str(exc)})
+            return
+        self._json(200, self.console.payload({"summary": f"已删除 {report['deleted']}"}))
+
+
 def watch_connection(stop: threading.Event, console: Console, *, interval: float = 10) -> None:
     remaining = 3
     while not stop.wait(0):
@@ -382,11 +540,12 @@ def serve(
     grace: float = 2,
     watch: bool = True,
     watch_interval: float = 10,
+    require_auth: bool = False,
 ) -> None:
     bind = resolve_bind(host, interface)
     secret = load_or_create_secret(secret_path(store.directory))
     lock = acquire_lock(store.directory)
-    console = Console(store, binary, secret, timeout=timeout, grace=grace)
+    console = Console(store, binary, secret, timeout=timeout, grace=grace, require_auth=require_auth)
     status(store)
     handler = type("BoundHandler", (Handler,), {"console": console, "expected_host": ""})
     server = ThreadingHTTPServer((bind, port), handler)

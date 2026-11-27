@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import re
 
 _UDID = re.compile(
@@ -14,6 +15,7 @@ _HOST = re.compile(
 _USBMUX_PATH = re.compile(r"^/[\w./@+-]{1,200}$")
 _USBMUX_TCP = re.compile(r"^[A-Za-z0-9.-]{1,253}:(\d{1,5})$")
 _NAME = re.compile(r"^[\w .()+\-]{1,64}$", re.UNICODE)
+_ZONE = re.compile(r"^(?:[A-Za-z][A-Za-z0-9._:-]{0,15}|[0-9]{1,5})$")
 
 
 class IdentifierError(ValueError):
@@ -42,13 +44,28 @@ def _ipv4(value: str) -> bool:
 def validate_host(value: str) -> str:
     if not isinstance(value, str) or any(ch in value for ch in " \t\r\n;|&$`<>\\"):
         raise IdentifierError("主机名含有不允许的字符")
-    if value.count(".") == 3 and all(part.isdigit() for part in value.split(".")):
-        if not _ipv4(value):
+    host = value
+    zone = None
+    if "%" in value:
+        host, zone = value.split("%", 1)
+        if not zone or not _ZONE.fullmatch(zone):
+            raise IdentifierError("IPv6 区域标识无效")
+    if host.startswith("[") and host.endswith("]") and len(host) > 2:
+        host = host[1:-1]
+    try:
+        ipaddress.IPv6Address(host)
+        return value
+    except ValueError:
+        pass
+    if zone is not None:
+        raise IdentifierError("带区域标识的主机必须是 IPv6 地址")
+    if host.count(".") == 3 and all(part.isdigit() for part in host.split(".")):
+        if not _ipv4(host):
             raise IdentifierError("IPv4 地址的每一段必须在 0 到 255")
         return value
-    if _HOST.fullmatch(value):
+    if _HOST.fullmatch(host):
         return value
-    raise IdentifierError("主机必须是 IPv4 或普通域名")
+    raise IdentifierError("主机必须是 IPv4、IPv6 或普通域名")
 
 
 def validate_usbmux_address(value: str) -> str:
