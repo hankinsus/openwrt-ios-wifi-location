@@ -5,14 +5,14 @@ set -eu
 
 usage() {
     cat <<'EOF'
-用法：sh scripts/oneclick-install.sh [--interface br-lan] [--dry-run] [--upgrade] [--root 路径] [--state-dir 路径] [--prefix 路径]
+用法：sh scripts/oneclick-install.sh [--interface br-lan] [--port 19443] [--dry-run] [--upgrade] [--root 路径] [--state-dir 路径] [--prefix 路径]
 
 自动识别 OpenWrt（/etc/openwrt_release，opkg 或 apk，procd）、Debian/Ubuntu/Armbian 等（apt-get，systemd）、Alpine Linux（apk，OpenRC）。
 补齐 Python 3.9+、pip、usbmuxd 和局域网发现（avahi），优先创建 venv。没有 venv 模块时改把依赖装进隔离目录，不写入系统 site-packages。
 然后安装本工具和 pymobiledevice3，运行 preflight，并写入 procd、systemd 或 OpenRC。
 不修改路由、防火墙或 PassWall，不监听 0.0.0.0。口令文件权限是 0600，输出只给路径。
 编译依赖只在上游不能直接装上时才补。
-OpenWrt 上默认把状态和配对文件放在 /etc/ios-wifi-loc（可写闪存），Debian/Alpine 默认 /var/lib/ios-wifi-loc。局域网页面默认免密，请勿把 47321 端口暴露到公网。再次运行或加 --upgrade 会保留已有口令、收藏和配对文件并重启服务。
+OpenWrt 上默认把状态和配对文件放在 /etc/ios-wifi-loc（可写闪存），Debian/Alpine 默认 /var/lib/ios-wifi-loc。局域网页面默认免密，请勿把 19443 端口暴露到公网。再次运行或加 --upgrade 会保留已有口令、收藏和配对文件并重启服务。
 EOF
 }
 
@@ -20,6 +20,7 @@ src=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 DRY=0
 UPGRADE=0
 INTERFACE=
+PORT=
 ROOT=
 STATE=
 PREFIX=
@@ -34,6 +35,12 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         --interface=*) INTERFACE=${1#--interface=}; shift ;;
+        --port)
+            [ $# -ge 2 ] || { echo "缺少 --port 的端口" >&2; exit 2; }
+            PORT=$2
+            shift 2
+            ;;
+        --port=*) PORT=${1#--port=}; shift ;;
         --root)
             [ $# -ge 2 ] || { echo "缺少 --root 的路径" >&2; exit 2; }
             ROOT=$2
@@ -81,6 +88,17 @@ if [ -n "$INTERFACE" ]; then
     }
     if [ "$INTERFACE" = "0.0.0.0" ]; then
         echo "拒绝监听 0.0.0.0。" >&2
+        exit 2
+    fi
+fi
+
+if [ -n "$PORT" ]; then
+    printf '%s\n' "$PORT" | grep -Eq '^[0-9]+$' || {
+        echo "端口无效。请写 1 到 65535 之间的数字，默认 19443。" >&2
+        exit 2
+    }
+    if [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
+        echo "端口无效。请写 1 到 65535 之间的数字，默认 19443。" >&2
         exit 2
     fi
 fi
@@ -152,6 +170,11 @@ if [ -n "$INTERFACE" ]; then
     echo "服务绑定网卡：$INTERFACE（不是 0.0.0.0）"
 else
     echo "服务只监听 127.0.0.1。局域网请加 --interface br-lan。"
+fi
+if [ -n "$PORT" ]; then
+    echo "网页端口：$PORT"
+else
+    echo "网页端口：19443（可用 --port 修改）"
 fi
 echo "不会修改路由、防火墙或 PassWall。"
 if [ "$UPGRADE" -eq 1 ]; then
@@ -374,12 +397,15 @@ install_args="--root $ROOT --python $PYBIN"
 if [ -n "$INTERFACE" ]; then
     install_args="$install_args --interface $INTERFACE"
 fi
+if [ -n "$PORT" ]; then
+    install_args="$install_args --port $PORT"
+fi
 # shellcheck disable=SC2086
 report=$(run_tool -m ios_wifi_loc --json --state-dir "$STATE" --binary "$PMBIN" install $install_args)
 secret_path=$(printf '%s' "$report" | "$BASEPY" -c 'import json,sys; print(json.load(sys.stdin)["details"]["secret_path"])')
 echo "已写入启动脚本。状态目录：$STATE"
 echo "口令文件：$secret_path（默认免密，不需要输入；文件权限应为 0600，需要时可用 --require-auth）。"
-echo "口令内容没有打印。请勿把 47321 端口暴露到公网。"
+echo "口令内容没有打印。请勿把 19443 端口暴露到公网。"
 
 if [ "$ROOT" = "/" ]; then
     if [ -f /etc/openwrt_release ] && [ -x /etc/init.d/ios-wifi-loc ]; then

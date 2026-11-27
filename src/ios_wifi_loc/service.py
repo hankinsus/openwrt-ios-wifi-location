@@ -3,6 +3,7 @@ from __future__ import annotations
 import binascii
 import json
 import os
+import re
 import secrets
 import signal
 import threading
@@ -25,8 +26,10 @@ from ios_wifi_loc.pairing import (
 )
 from ios_wifi_loc.session import (
     clear_location,
+    list_enabled_desired_targets,
     reconnect,
     refresh_devices,
+    resume_desired_targets,
     select_device,
     set_location,
     status,
@@ -37,7 +40,7 @@ from ios_wifi_loc.state import StateStore
 from ios_wifi_loc.web_page import render_page
 from ios_wifi_loc.windows_pair import ToolError, render_windows_pair_bat, server_base_from_host
 
-DEFAULT_PORT = 47321
+DEFAULT_PORT = 19443
 
 
 
@@ -48,12 +51,14 @@ def _session_ui_fields(sess: dict | None) -> dict:
             "holding": False,
             "watchdog_active": False,
             "waiting_reconnect": False,
+            "waiting_for_wifi": False,
             "reconnect_count": 0,
             "last_reconnect_at": None,
             "last_error": None,
         }
     alive = bool(sess.get("alive"))
-    waiting = bool(sess.get("waiting_reconnect") or (sess.get("watchdog_active") and alive and not sess.get("holding")))
+    waiting_wifi = bool(sess.get("waiting_for_wifi"))
+    waiting = bool(sess.get("waiting_reconnect") or waiting_wifi or (sess.get("watchdog_active") and alive and not sess.get("holding")))
     try:
         reconnect_count = int(sess.get("reconnect_count") or 0)
     except (TypeError, ValueError):
@@ -63,6 +68,7 @@ def _session_ui_fields(sess: dict | None) -> dict:
         "holding": bool(sess.get("holding")),
         "watchdog_active": bool(sess.get("watchdog_active") and alive),
         "waiting_reconnect": waiting,
+        "waiting_for_wifi": waiting_wifi,
         "reconnect_count": reconnect_count,
         "last_reconnect_at": sess.get("last_reconnect_at"),
         "last_error": sess.get("last_error"),
@@ -71,8 +77,9 @@ def _session_ui_fields(sess: dict | None) -> dict:
     }
 
 
-def _devices_with_sessions(devices: list, sessions: list) -> list[dict]:
+def _devices_with_sessions(devices: list, sessions: list, desired: list | None = None) -> list[dict]:
     by_udid = {item.get("udid"): dict(item) for item in sessions if isinstance(item, dict) and item.get("udid")}
+    wanted = {item.get("udid"): dict(item) for item in (desired or []) if isinstance(item, dict) and item.get("udid")}
     result = []
     seen = set()
     for device in devices:
@@ -81,24 +88,67 @@ def _devices_with_sessions(devices: list, sessions: list) -> list[dict]:
         item = dict(device)
         sess = by_udid.get(item["udid"])
         item.update(_session_ui_fields(sess))
+        target = wanted.get(item["udid"])
+        if target:
+            item.setdefault("latitude", target.get("latitude") or target.get("lat"))
+            item.setdefault("longitude", target.get("longitude") or target.get("lon"))
+            if item.get("latitude") is None:
+                item["latitude"] = target.get("latitude") or target.get("lat")
+                item["longitude"] = target.get("longitude") or target.get("lon")
+            item["desired"] = True
         result.append(item)
         seen.add(item["udid"])
-    for udid, sess in by_udid.items():
+    extras = list(by_udid.items()) + [(udid, wanted[udid]) for udid in wanted if udid not in by_udid]
+    for udid, sess in extras:
         if udid in seen:
             continue
         item = {
             "udid": udid,
             "name": None,
             "connection": "wifi",
-            "transport": "mobdev2",
-            "source": "session",
-            "host": None,
+            "transport": sess.get("transport") or "mobdev2",
+            "source": "session" if udid in by_udid else "desired",
+            "host": sess.get("host"),
             "product_version": None,
             "tunnel_ready": False,
         }
-        item.update(_session_ui_fields(sess))
+        item.update(_session_ui_fields(by_udid.get(udid)))
+        target = wanted.get(udid)
+        if target:
+            if item.get("latitude") is None:
+                item["latitude"] = target.get("latitude") or target.get("lat")
+                item["longitude"] = target.get("longitude") or target.get("lon")
+            item["desired"] = True
         result.append(item)
+        seen.add(udid)
     return result
+
+
+ICLOUD_SHORTCUT_RE = re.compile(r"^https://www\.icloud\.com/shortcuts/[A-Za-z0-9]+/?$", re.IGNORECASE)
+
+
+def normalize_icloud_shortcut_url(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if not ICLOUD_SHORTCUT_RE.match(text):
+        raise ServiceError("请粘贴 https://www.icloud.com/shortcuts/… 格式的分享链接")
+    return text.rstrip("/")
+
+
+def shortcut_settings(data: dict | None = None) -> dict:
+    settings = data.get("settings") if isinstance(data, dict) and isinstance(data.get("settings"), dict) else {}
+    stored = settings.get("shortcuts") if isinstance(settings.get("shortcuts"), dict) else {}
+    env_set = (os.environ.get("IOS_WIFI_LOC_SHORTCUT_SET_URL") or "").strip()
+    env_clear = (os.environ.get("IOS_WIFI_LOC_SHORTCUT_CLEAR_URL") or "").strip()
+    set_url = env_set or stored.get("set_icloud_url") or ""
+    clear_url = env_clear or stored.get("clear_icloud_url") or ""
+    return {
+        "set_icloud_url": set_url,
+        "clear_icloud_url": clear_url,
+        "set_from_env": bool(env_set),
+        "clear_from_env": bool(env_clear),
+    }
 
 
 def enrich_pairing(report: dict, data: dict) -> dict:
@@ -217,13 +267,14 @@ class RateLimiter:
 
 
 class Console:
-    def __init__(self, store: StateStore, binary: str, secret: str, *, timeout: float = 20, grace: float = 2, require_auth: bool = False) -> None:
+    def __init__(self, store: StateStore, binary: str, secret: str, *, timeout: float = 20, grace: float = 2, require_auth: bool = False, restore: bool = True) -> None:
         self.store = store
         self.binary = binary
         self.secret = secret
         self.timeout = timeout
         self.grace = grace
         self.require_auth = require_auth
+        self.restore = restore
         self.sessions: dict[str, float] = {}
         self.rates = RateLimiter()
         self.log_path = store.directory / "service.log"
@@ -236,9 +287,15 @@ class Console:
         data = dict(current.details)
         data["summary"] = current.summary
         state = self.store.load()
-        data["devices"] = _devices_with_sessions(state.get("discovery") or [], data.get("sessions") or [])
+        data["devices"] = _devices_with_sessions(
+            state.get("discovery") or [],
+            data.get("sessions") or [],
+            data.get("desired_targets") or list_enabled_desired_targets(state),
+        )
+        data["desired_targets"] = data.get("desired_targets") or list_enabled_desired_targets(state)
         data["pairing"] = enrich_pairing(list_pairing(self.store.directory, runtime_dir=runtime_lockdown_dir()), state)
         data["device_names"] = state.get("device_names") or {}
+        data["settings"] = {"shortcuts": shortcut_settings(state)}
         data["require_auth"] = self.require_auth
         if extra:
             data.update(extra)
@@ -373,6 +430,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/status":
             self._json(200, self.console.payload())
             return
+        if path == "/api/settings":
+            self._json(200, self.console.payload())
+            return
         if path == "/api/guide":
             self._json(200, {"text": pair_guide()})
             return
@@ -452,6 +512,9 @@ class Handler(BaseHTTPRequestHandler):
                     usbmux_address=None,
                 )
                 self._json(200 if outcome.ok else 400, self.console.payload({"summary": outcome.summary}))
+                return
+            if path == "/api/settings":
+                self._save_settings(body)
                 return
             if path == "/api/favorites":
                 self._add_favorite(body)
@@ -566,6 +629,24 @@ class Handler(BaseHTTPRequestHandler):
             raise ServiceError("没有这个收藏")
         data["favorites"] = favorites
         self.console.store.save(data)
+        self._json(200, self.console.payload())
+
+    def _save_settings(self, body: dict) -> None:
+        shortcuts = body.get("shortcuts") if isinstance(body.get("shortcuts"), dict) else body
+        try:
+            set_url = normalize_icloud_shortcut_url(shortcuts.get("set_icloud_url"))
+            clear_url = normalize_icloud_shortcut_url(shortcuts.get("clear_icloud_url"))
+        except ServiceError as exc:
+            self._json(400, {"summary": str(exc), "command_accepted": False})
+            return
+        state = self.console.store.load()
+        settings = dict(state.get("settings") or {})
+        stored = dict(settings.get("shortcuts") or {})
+        stored["set_icloud_url"] = set_url
+        stored["clear_icloud_url"] = clear_url
+        settings["shortcuts"] = stored
+        state["settings"] = settings
+        self.console.store.save(state)
         self._json(200, self.console.payload())
 
     def _import_pairing(self, body: dict) -> None:
@@ -684,6 +765,11 @@ def watch_connection(stop: threading.Event, console: Console, *, interval: float
     remaining = 3
     while not stop.wait(0):
         status(console.store)
+        if getattr(console, "restore", True):
+            try:
+                resume_desired_targets(console.store, console.binary, timeout=min(console.timeout, 8), grace=console.grace)
+            except Exception:
+                pass
         delay = interval
         selected = (console.store.load().get("selected") or {}).get("udid")
         if selected and remaining > 0:
@@ -727,11 +813,13 @@ def serve(
     watch: bool = True,
     watch_interval: float = 10,
     require_auth: bool = False,
+    restore: bool | None = None,
 ) -> None:
     bind = resolve_bind(host, interface)
     secret = load_or_create_secret(secret_path(store.directory))
     lock = acquire_lock(store.directory)
-    console = Console(store, binary, secret, timeout=timeout, grace=grace, require_auth=require_auth)
+    should_restore = restore if restore is not None else True
+    console = Console(store, binary, secret, timeout=timeout, grace=grace, require_auth=require_auth, restore=should_restore)
     status(store)
     handler = type("BoundHandler", (Handler,), {"console": console, "expected_host": ""})
     server = ThreadingHTTPServer((bind, port), handler)
@@ -743,6 +831,14 @@ def serve(
         watcher.start()
     print(f"LISTENING {bind} {server.server_address[1]}", flush=True)
     console.log(f"监听 {bind} {server.server_address[1]}")
+    if should_restore:
+        restorer = threading.Thread(
+            target=resume_desired_targets,
+            args=(store, binary),
+            kwargs={"timeout": timeout, "grace": grace},
+            daemon=True,
+        )
+        restorer.start()
 
     def _stop(_signum: int, _frame: object) -> None:
         threading.Thread(target=server.shutdown, daemon=True).start()

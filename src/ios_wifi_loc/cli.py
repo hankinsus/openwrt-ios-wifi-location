@@ -22,7 +22,7 @@ from ios_wifi_loc.session import (
 )
 from ios_wifi_loc.binary import DEFAULT_BINARY_NAME, resolve_binary
 from ios_wifi_loc.install import default_state_dir_for_root, install_files, preflight, uninstall_files
-from ios_wifi_loc.service import ServiceError, serve
+from ios_wifi_loc.service import DEFAULT_PORT, ServiceError, serve
 from ios_wifi_loc.state import StateError, StateStore
 
 
@@ -56,8 +56,9 @@ def _parser() -> argparse.ArgumentParser:
 
     serve_cmd = sub.add_parser("serve", help="启动本机网页控制台")
     serve_cmd.add_argument("--interface", default=None, help="只绑定这块网卡的 IPv4；不指定则只监听 127.0.0.1")
-    serve_cmd.add_argument("--port", type=int, default=47321)
+    serve_cmd.add_argument("--port", type=int, default=DEFAULT_PORT)
     serve_cmd.add_argument("--no-watch", action="store_true")
+    serve_cmd.add_argument("--no-restore", action="store_true", help="启动时不要根据已保存的定位自动恢复")
     serve_cmd.add_argument("--watch-interval", type=float, default=10)
     auth = serve_cmd.add_mutually_exclusive_group()
     auth.add_argument("--no-auth", action="store_true", default=None, help="局域网免密打开页面（默认）")
@@ -69,6 +70,7 @@ def _parser() -> argparse.ArgumentParser:
     install_cmd.add_argument("--interface", default=None, help="服务只绑定这块网卡；不指定则只监听 127.0.0.1")
     install_cmd.add_argument("--python", default=None, help="启动脚本里使用的 Python")
     install_cmd.add_argument("--require-auth", action="store_true", help="服务需要口令；默认免密，仅供受信局域网")
+    install_cmd.add_argument("--port", type=int, default=None, help="网页端口，默认 19443")
     uninstall_cmd = sub.add_parser("uninstall", help="删除启动脚本")
     uninstall_cmd.add_argument("--root", default="/")
     uninstall_cmd.add_argument("--state-dir", default=argparse.SUPPRESS)
@@ -240,6 +242,7 @@ def main(argv: list[str] | None = None) -> int:
                     watch=not args.no_watch,
                     watch_interval=args.watch_interval,
                     require_auth=require_auth,
+                    restore=not getattr(args, "no_restore", False),
                 )
             except ServiceError as exc:
                 outcome = Outcome(False, "SERVICE", 2, str(exc), {})
@@ -255,6 +258,7 @@ def main(argv: list[str] | None = None) -> int:
                     interface=args.interface,
                     binary=args.binary,
                     require_auth=bool(getattr(args, "require_auth", False)),
+                    port=getattr(args, "port", None),
                 )
             except ValueError as exc:
                 outcome = Outcome(False, "VALIDATION", 2, str(exc), {})

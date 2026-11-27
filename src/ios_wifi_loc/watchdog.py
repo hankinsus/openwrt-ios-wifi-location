@@ -14,7 +14,7 @@ from ios_wifi_loc.session import (
     _session_logs,
 )
 from ios_wifi_loc.state import StateStore
-from ios_wifi_loc.tunneld import tunnel_ready_for
+from ios_wifi_loc.tunneld import query_tunneld, tunnel_endpoint_for, tunnel_signature
 from ios_wifi_loc.upstream import PlanError, Target, location_argv
 
 ERROR_MARKERS = (
@@ -22,6 +22,10 @@ ERROR_MARKERS = (
     "Network unreachable",
     "Errno 101",
     "[Errno 101]",
+    "Broken pipe",
+    "Connection reset",
+    "Connection refused",
+    "InvalidServiceError",
 )
 
 
@@ -60,6 +64,34 @@ def backoff_series() -> list[float]:
         except ValueError:
             continue
     return delays or [3.0, 5.0, 10.0]
+
+
+def poll_interval() -> float:
+    raw = os.environ.get("IOS_WIFI_LOC_WATCHDOG_POLL", "3")
+    try:
+        return max(0.05, min(30.0, float(raw)))
+    except ValueError:
+        return 3.0
+
+
+def settle_delay() -> float:
+    raw = os.environ.get("IOS_WIFI_LOC_WATCHDOG_SETTLE", "1")
+    try:
+        return max(0.0, min(10.0, float(raw)))
+    except ValueError:
+        return 1.0
+
+
+def classify_tunnel(udid: str, started: tuple[object, object] | None, info: dict) -> str | None:
+    """Return missing / changed / unreachable, or None if the endpoint is still good."""
+    if not info.get("reachable"):
+        return "unreachable"
+    current = tunnel_signature(tunnel_endpoint_for(udid, info))
+    if current is None:
+        return "missing" if started is not None else None
+    if started is not None and current != started:
+        return "changed"
+    return None
 
 
 def log_contains_error(path: Path, offset: int) -> tuple[bool, str, int]:
@@ -239,44 +271,88 @@ def run_hold(store: StateStore, args: object) -> int:
         last_error=last_error,
         last_reconnect_at=existing.get("last_reconnect_at"),
         waiting_reconnect=False,
+        waiting_for_wifi=False,
+        desired=True,
+        use_tunnel=use_tunnel,
     )
 
     child: subprocess.Popen[bytes] | None = None
     attempt = 0
+    started_sig: tuple[object, object] | None = None
     try:
         while not stopped():
             if attempt > 0:
+                waiting_wifi = bool(use_tunnel)
                 _update_session(
                     store,
                     udid,
                     holding=False,
                     child_pid=None,
                     waiting_reconnect=True,
+                    waiting_for_wifi=waiting_wifi,
                     watchdog_active=True,
                     reconnect_count=reconnect_count,
                     last_error=last_error,
                     last_reconnect_at=_now(),
+                    desired=True,
+                    tunnel_address=None,
+                    tunnel_port=None,
                 )
                 delays = backoff_series()
                 delay = delays[min(attempt - 1, len(delays) - 1)]
                 deadline = time.monotonic() + delay
                 while time.monotonic() < deadline and not stopped():
-                    if use_tunnel and tunnel_ready_for(udid):
+                    if use_tunnel:
+                        info = query_tunneld()
+                        if tunnel_endpoint_for(udid, info) is not None:
+                            break
+                    else:
                         break
                     time.sleep(0.05)
                 if stopped():
                     break
+                if use_tunnel:
+                    # Wait until the UDID is actually listed again, retrying
+                    # even if tunneld itself is temporarily unreachable.
+                    while not stopped() and tunnel_endpoint_for(udid) is None:
+                        _update_session(
+                            store,
+                            udid,
+                            holding=False,
+                            child_pid=None,
+                            waiting_reconnect=True,
+                            waiting_for_wifi=True,
+                            watchdog_active=True,
+                            reconnect_count=reconnect_count,
+                            last_error=last_error or "waiting_for_wifi",
+                            desired=True,
+                        )
+                        time.sleep(min(0.2, poll_interval()))
+                    if stopped():
+                        break
+                    settle = settle_delay()
+                    if settle:
+                        _sleep(settle, stopped)
+                    if stopped():
+                        break
             child = spawn_child(argv, log_out, log_err, rotate=(attempt == 0))
-            offset = log_err.stat().st_size if log_err.exists() else 0
+            offset_err = log_err.stat().st_size if log_err.exists() else 0
+            offset_out = log_out.stat().st_size if log_out.exists() else 0
+            started_sig = tunnel_signature(tunnel_endpoint_for(udid)) if use_tunnel else None
             _update_session(
                 store,
                 udid,
                 holding=True,
                 child_pid=child.pid,
                 waiting_reconnect=False,
+                waiting_for_wifi=False,
                 watchdog_active=True,
                 reconnect_count=reconnect_count,
                 last_error=last_error,
+                desired=True,
+                use_tunnel=use_tunnel,
+                tunnel_address=None if started_sig is None else started_sig[0],
+                tunnel_port=None if started_sig is None else started_sig[1],
             )
             if attempt == 0:
                 deadline = time.monotonic() + max(0.05, grace)
@@ -294,25 +370,69 @@ def run_hold(store: StateStore, args: object) -> int:
                         holding=False,
                         child_pid=None,
                         watchdog_active=False,
+                        waiting_for_wifi=False,
                         last_error=tail.strip() or f"exit {child.returncode}",
                     )
                     return 1 if child.returncode else 4
+            next_poll = time.monotonic()
             while not stopped() and child.poll() is None:
-                hit, excerpt, offset = log_contains_error(log_err, offset)
+                hit, excerpt, offset_err = log_contains_error(log_err, offset_err)
+                if not hit:
+                    hit, excerpt, offset_out = log_contains_error(log_out, offset_out)
                 if hit:
                     last_error = excerpt or "Network unreachable"
                     _kill_child(child)
                     break
+                now = time.monotonic()
+                if use_tunnel and now >= next_poll:
+                    next_poll = now + poll_interval()
+                    info = query_tunneld()
+                    reason = classify_tunnel(udid, started_sig, info)
+                    if reason == "unreachable":
+                        _update_session(
+                            store,
+                            udid,
+                            holding=True,
+                            child_pid=child.pid,
+                            waiting_reconnect=True,
+                            waiting_for_wifi=True,
+                            watchdog_active=True,
+                            reconnect_count=reconnect_count,
+                            last_error="tunneld unreachable",
+                            desired=True,
+                        )
+                    elif reason in {"missing", "changed"}:
+                        last_error = "tunnel endpoint changed" if reason == "changed" else "waiting_for_wifi"
+                        _kill_child(child)
+                        break
+                    elif reason is None and started_sig is None:
+                        started_sig = tunnel_signature(tunnel_endpoint_for(udid, info))
+                        if started_sig is not None:
+                            _update_session(
+                                store,
+                                udid,
+                                holding=True,
+                                child_pid=child.pid,
+                                waiting_reconnect=False,
+                                waiting_for_wifi=False,
+                                watchdog_active=True,
+                                reconnect_count=reconnect_count,
+                                desired=True,
+                                tunnel_address=started_sig[0],
+                                tunnel_port=started_sig[1],
+                            )
                 time.sleep(0.05)
             if stopped():
                 break
             code = child.returncode if child is not None else None
-            if last_error is None or child is not None and child.poll() is not None:
+            if last_error is None or (child is not None and child.poll() is not None):
                 tail = ""
                 if log_err.exists():
                     tail = log_err.read_bytes()[-500:].decode("utf-8", "replace")
                 if any(marker in tail for marker in ERROR_MARKERS):
                     last_error = next((marker for marker in ERROR_MARKERS if marker in tail), tail[-200:])
+                elif last_error:
+                    pass
                 elif tail.strip():
                     last_error = tail.strip()[-200:]
                 else:

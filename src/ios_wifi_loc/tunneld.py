@@ -155,6 +155,32 @@ def query_tunneld(url: str | None = None, *, timeout: float = DEFAULT_TIMEOUT) -
     return result
 
 
+def tunnel_endpoint_for(udid: str, status: dict | None = None) -> dict | None:
+    """Return the listed tunnel for this UDID, or None if missing or tunneld is down."""
+    info = status if status is not None else query_tunneld()
+    if not info.get("reachable"):
+        return None
+    try:
+        checked = validate_udid(udid)
+    except IdentifierError:
+        return None
+    for item in info.get("tunnels") or []:
+        if item.get("udid") == checked:
+            return {
+                "address": item.get("address"),
+                "port": item.get("port"),
+                "interface": item.get("interface"),
+                "reachable": True,
+            }
+    return None
+
+
+def tunnel_signature(endpoint: dict | None) -> tuple[object, object] | None:
+    if not endpoint:
+        return None
+    return (endpoint.get("address"), endpoint.get("port"))
+
+
 def tunnel_ready_for(udid: str, status: dict | None = None) -> bool:
     info = status if status is not None else query_tunneld()
     if not info.get("reachable"):

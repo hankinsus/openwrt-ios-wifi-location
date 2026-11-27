@@ -95,6 +95,21 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .step-no { flex:none; width:22px; height:22px; border-radius:50%; background:var(--blue); color:#fff; font-size:12px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; margin-top:1px; }
 .pair-step .pair-cmds { margin-top:8px; user-select:all; }
 .copy-btn { flex:none; min-width:auto; margin-left:auto; }
+
+.device-info { margin-top:10px; background:var(--bg); border-radius:10px; padding:12px; }
+.device-info-title { font-size:15px; font-weight:600; }
+.device-info-meta { font-size:12px; color:#8e8e93; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-top:4px; word-break:break-all; }
+.device-info .device-status { margin-top:8px; }
+.pair-group { background:var(--bg); border-radius:10px; padding:12px; margin-bottom:8px; }
+.pair-group-head { font-size:14px; font-weight:600; margin-bottom:8px; }
+.pair-file { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:12px; }
+.pair-file + .pair-file { border-top:1px solid #e5e5ea; }
+.pair-file-name { flex:1; min-width:0; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; word-break:break-all; }
+.pair-file .badge { flex:none; }
+.pair-file .fav-del { flex:none; width:24px; height:24px; border:none; background:transparent; color:#8e8e93; font-size:18px; cursor:pointer; line-height:1; }
+.shortcut-install { margin:0 0 12px 0; }
+.shortcut-json { font-size:12px; user-select:all; white-space:pre-wrap; word-break:break-all; }
+.map-wrap { position:relative; }
 </style>
 </head>
 <body>
@@ -108,6 +123,18 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
   </div>
 </div>
 <div id="app" hidden>
+  <div class="map-wrap">
+    <div id="map"></div>
+    <div id="map-fallback">地图组件未能加载，仍可手动输入或粘贴坐标。</div>
+    <div class="layer-switch" id="layers">
+      <button class="layer-btn active" data-layer="satellite" type="button">卫星</button>
+      <button class="layer-btn" data-layer="wgs84" type="button">WGS84</button>
+      <button class="layer-btn" data-layer="amap" type="button">高德</button>
+      <button class="layer-btn" data-layer="voyager" type="button">彩色</button>
+      <button class="layer-btn" data-layer="standard" type="button">标准</button>
+      <button class="layer-btn" data-layer="dark" type="button">暗色</button>
+    </div>
+  </div>
   <div class="panel device-bar-wrap">
     <div class="card" style="margin-bottom:0">
       <div class="fav-header">
@@ -115,7 +142,11 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
         <button class="btn btn-sm btn-secondary" id="discover" type="button">重新扫描</button>
       </div>
       <select id="device-select" class="field device-select" aria-label="选择设备"></select>
-      <div id="device-status" class="device-status"></div>
+      <div id="device-info" class="device-info" hidden>
+        <div class="device-info-title" id="device-info-title"></div>
+        <div class="device-info-meta" id="device-info-udid"></div>
+        <div id="device-status" class="device-status"></div>
+      </div>
       <div id="tunneld-line" class="notice" style="text-align:left;margin:8px 0 0 0"></div>
       <details id="manual-device">
         <summary>高级 / 手动添加</summary>
@@ -132,18 +163,6 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
         <label>主机（可选，支持 IPv6 如 fe80::1%br-lan） <input id="host" class="field" type="text" autocomplete="off"></label>
         <div class="row"><button class="btn btn-primary" id="choose" type="button">选择此设备</button></div>
       </details>
-    </div>
-  </div>
-  <div style="position:relative">
-    <div id="map"></div>
-    <div id="map-fallback">地图组件未能加载，仍可手动输入或粘贴坐标。</div>
-    <div class="layer-switch" id="layers">
-      <button class="layer-btn active" data-layer="satellite" type="button">卫星</button>
-      <button class="layer-btn" data-layer="wgs84" type="button">WGS84</button>
-      <button class="layer-btn" data-layer="amap" type="button">高德</button>
-      <button class="layer-btn" data-layer="voyager" type="button">彩色</button>
-      <button class="layer-btn" data-layer="standard" type="button">标准</button>
-      <button class="layer-btn" data-layer="dark" type="button">暗色</button>
     </div>
   </div>
   <div class="panel">
@@ -184,6 +203,29 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 
     <div class="card">
       <h3>iOS 快捷指令 &amp; 地图分享</h3>
+      <div class="shortcut-install">
+        <p class="notice" style="text-align:left;margin:0 0 10px 0">Apple 从 iOS 15 起要求已签名的 iCloud 分享链接（<code>https://www.icloud.com/shortcuts/…</code>）才能一键安装。本页不提供无法打开的未签名 <code>.shortcut</code> 文件。把你自己签好并分享的链接保存到下面后，即可点蓝色按钮一键安装。</p>
+        <div class="row" id="shortcut-install-buttons" style="margin-top:0"></div>
+        <div class="active-loc">
+          <div class="label">一键定位 / 地图分享快捷指令（iCloud 链接）</div>
+          <div class="input-row">
+            <input id="shortcut-set-icloud" placeholder="https://www.icloud.com/shortcuts/…">
+            <button type="button" class="btn btn-sm btn-secondary" id="save-shortcut-set-icloud" style="flex:none">保存</button>
+          </div>
+        </div>
+        <div class="active-loc">
+          <div class="label">一键恢复真实定位快捷指令（iCloud 链接）</div>
+          <div class="input-row">
+            <input id="shortcut-clear-icloud" placeholder="https://www.icloud.com/shortcuts/…">
+            <button type="button" class="btn btn-sm btn-secondary" id="save-shortcut-clear-icloud" style="flex:none">保存</button>
+          </div>
+        </div>
+        <div class="active-loc">
+          <div class="label">快捷指令配置（复制到备忘录或发给自己）</div>
+          <pre class="pair-cmds shortcut-json" id="shortcut-config-json">正在生成…</pre>
+          <div class="row"><button type="button" class="btn btn-sm btn-secondary" id="copy-shortcut-config">复制配置 JSON</button></div>
+        </div>
+      </div>
       <p class="notice" style="text-align:left;margin:0 0 10px 0">三种方式设置定位，都走本机路由，不经过外部定位服务：</p>
       <div class="pair-steps">
         <div class="pair-step">
@@ -290,8 +332,8 @@ pymobiledevice3 lockdown wifi-connections on</pre>
 
     <div class="footer-card">
       <div class="footer-brand">OpenWrt 无线虚拟定位</div>
-      <div class="footer-version">v0.4.0</div>
-      <p class="notice">仅供受信局域网使用。请勿把 47321 端口暴露到公网。</p>
+      <div class="footer-version">v0.4.1</div>
+      <p class="notice">仅供受信局域网使用。请勿把 19443 端口暴露到公网。</p>
     </div>
     <div class="status" id="status">在地图上选好位置后点击「设置定位」，然后在手机地图确认</div>
     <p id="action-error" class="bad"></p>
@@ -372,6 +414,7 @@ function deviceTitle(item) {
   return name + (item.product_version ? (" (iOS " + item.product_version + ")") : "");
 }
 function deviceStatusText(item, tunneldReady) {
+  if (item.waiting_for_wifi && item.watchdog_active) return "等待 Wi-Fi / 隧道恢复后自动重连…";
   if (item.waiting_reconnect && item.watchdog_active) return "等待隧道恢复自动重连…";
   if ((item.holding || item.session_alive) && item.watchdog_active) {
     const n = item.reconnect_count || 0;
@@ -405,23 +448,30 @@ function paintDeviceSelect(data) {
     devices.forEach((item) => {
       const opt = document.createElement("option");
       opt.value = item.udid;
-      opt.textContent = deviceTitle(item) + " · " + deviceStatusText(item, ready);
+      opt.textContent = deviceTitle(item);
       sel.appendChild(opt);
     });
   }
   sel.value = selectedId;
   const current = devices.find((d) => d.udid === selectedId);
+  const info = $("device-info");
   const box = $("device-status");
   box.replaceChildren();
   if (current) {
+    if (info) info.hidden = false;
+    if ($("device-info-title")) $("device-info-title").textContent = deviceTitle(current);
+    if ($("device-info-udid")) $("device-info-udid").textContent = "UDID  " + current.udid;
     const badge = document.createElement("span");
-    const waiting = current.waiting_reconnect && current.watchdog_active;
-    const holding = current.holding || current.session_alive;
+    const waiting = (current.waiting_reconnect || current.waiting_for_wifi) && current.watchdog_active;
+    const holding = current.holding || current.session_alive || current.desired;
     badge.className = "badge " + (waiting ? "badge-wait" : (holding || current.tunnel_ready ? "badge-on" : (ready ? "badge-wait" : "badge-off")));
     badge.textContent = deviceStatusText(current, ready);
     box.appendChild(badge);
-  } else if (devices.length) {
-    box.textContent = "请从上方列表选择一台已发现的 iPhone";
+  } else {
+    if (info) info.hidden = !devices.length;
+    if ($("device-info-title")) $("device-info-title").textContent = devices.length ? "请选择一台 iPhone" : "未发现设备";
+    if ($("device-info-udid")) $("device-info-udid").textContent = "";
+    if (devices.length) box.textContent = "切换上方列表即可立即选中，无需再点按钮";
   }
 }
 function esc(s) {
@@ -585,7 +635,7 @@ function paint(data) {
     info.appendChild(meta);
     const badge = document.createElement("span");
     const statusText = deviceStatusText(item, ready);
-    if (item.waiting_reconnect && item.watchdog_active) badge.className = "badge badge-wait";
+    if ((item.waiting_reconnect || item.waiting_for_wifi) && item.watchdog_active) badge.className = "badge badge-wait";
     else if (item.holding || item.session_alive || item.tunnel_ready) badge.className = "badge badge-on";
     else badge.className = "badge " + (ready ? "badge-wait" : "badge-off");
     badge.textContent = statusText === "隧道就绪" ? "隧道已就绪" : statusText;
@@ -606,9 +656,11 @@ function paint(data) {
   let cmdLine = (data.command_accepted ? "上游已接受最近一次命令" : "尚未接受，或上次没有成功")
     + "；会话进程" + (data.session_alive ? "仍在本机运行" : "没有在运行");
   if (sess.watchdog_active && data.session_alive) {
-    cmdLine += sess.waiting_reconnect
+    cmdLine += sess.waiting_for_wifi
+      ? "；等待 Wi-Fi / 隧道恢复后自动重连…"
+      : (sess.waiting_reconnect
       ? "；等待隧道恢复自动重连…"
-      : "；自动重连已开启，已重连 " + (sess.reconnect_count || 0) + " 次";
+      : "；自动重连已开启，已重连 " + (sess.reconnect_count || 0) + " 次");
   }
   $("command-line").textContent = cmdLine;
   $("phone-line").textContent = "未能确认。进程还在不能代表手机坐标，请在苹果地图查看蓝点。";
@@ -657,36 +709,60 @@ function paint(data) {
     + "。" + (ready ? "无线隧道服务已就绪。" : "等待 tunneld 连接。");
   const files = $("pair-files");
   files.replaceChildren();
-  (pairing.files || []).forEach((item) => {
-    const row = document.createElement("div");
-    row.className = "fav-item";
-    const info = document.createElement("div");
-    info.className = "fav-info";
-    const name = document.createElement("div");
-    name.className = "fav-name";
-    if (item.system_configuration) name.textContent = item.display_name || "系统配对配置";
-    else {
+  const allFiles = pairing.files || [];
+  const systemFiles = allFiles.filter((item) => item.system_configuration);
+  const deviceFiles = allFiles.filter((item) => !item.system_configuration);
+  const groups = [];
+  const grouped = {};
+  deviceFiles.forEach((item) => {
+    const key = item.udid || item.filename;
+    if (!grouped[key]) {
       const title = item.device_name || item.display_name || "未命名设备";
-      name.textContent = item.product_version ? (title + "  iOS " + item.product_version) : title;
+      const head = item.product_version ? (title + " · iOS " + item.product_version) : title;
+      grouped[key] = {head, files: []};
+      groups.push(grouped[key]);
     }
-    const meta = document.createElement("div");
-    meta.className = "fav-coords";
-    meta.textContent = item.filename + (item.system_configuration ? "  ·  系统配对配置" : "");
-    info.appendChild(name);
-    info.appendChild(meta);
-    const del = document.createElement("button");
-    del.className = "fav-del";
-    del.type = "button";
-    del.textContent = "×";
-    del.onclick = async () => {
-      try {
-        paint(await api("/api/pairing/" + encodeURIComponent(item.filename), {method:"DELETE", body: "{}"}));
-        toast("已删除 " + item.filename);
-      } catch (error) { $("action-error").textContent = error.message; }
-    };
-    row.appendChild(info);
-    row.appendChild(del);
-    files.appendChild(row);
+    grouped[key].files.push(item);
+  });
+  if (!groups.length && systemFiles.length) {
+    groups.push({head: "系统配对配置", files: []});
+  }
+  groups.forEach((group) => {
+    const card = document.createElement("div");
+    card.className = "pair-group";
+    const head = document.createElement("div");
+    head.className = "pair-group-head";
+    head.textContent = group.head;
+    card.appendChild(head);
+    const rows = group.files.concat(systemFiles);
+    rows.forEach((item) => {
+      const row = document.createElement("div");
+      row.className = "pair-file";
+      const name = document.createElement("div");
+      name.className = "pair-file-name";
+      name.textContent = item.filename;
+      row.appendChild(name);
+      if (item.system_configuration) {
+        const badge = document.createElement("span");
+        badge.className = "badge badge-wait";
+        badge.textContent = "共享系统配置";
+        row.appendChild(badge);
+      }
+      const del = document.createElement("button");
+      del.className = "fav-del";
+      del.type = "button";
+      del.textContent = "×";
+      del.setAttribute("aria-label", "删除 " + item.filename);
+      del.onclick = async () => {
+        try {
+          paint(await api("/api/pairing/" + encodeURIComponent(item.filename), {method:"DELETE", body: "{}"}));
+          toast("已删除 " + item.filename);
+        } catch (error) { $("action-error").textContent = error.message; }
+      };
+      row.appendChild(del);
+      card.appendChild(row);
+    });
+    files.appendChild(card);
   });
 }
 
@@ -841,6 +917,45 @@ function fillShortcutUrls() {
   }
   if ($("shortcut-auth-note")) $("shortcut-auth-note").style.display = NO_AUTH ? "none" : "";
   if ($("download-windows-pair")) $("download-windows-pair").href = "/api/tools/windows-pair.bat";
+  const links = (lastPayload.settings && lastPayload.settings.shortcuts) || {};
+  if ($("shortcut-set-icloud") && document.activeElement !== $("shortcut-set-icloud")) {
+    $("shortcut-set-icloud").value = links.set_icloud_url || "";
+  }
+  if ($("shortcut-clear-icloud") && document.activeElement !== $("shortcut-clear-icloud")) {
+    $("shortcut-clear-icloud").value = links.clear_icloud_url || "";
+  }
+  const install = $("shortcut-install-buttons");
+  if (install) {
+    install.replaceChildren();
+    function addInstall(url, label) {
+      if (!url) return;
+      const a = document.createElement("a");
+      a.className = "btn btn-primary";
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = label;
+      install.appendChild(a);
+    }
+    addInstall(links.set_icloud_url, "一键安装 iOS 快捷指令");
+    addInstall(links.clear_icloud_url, "一键安装恢复定位快捷指令");
+    if (!links.set_icloud_url && !links.clear_icloud_url) {
+      const hint = document.createElement("p");
+      hint.className = "notice";
+      hint.style.cssText = "text-align:left;margin:0;flex:1";
+      hint.textContent = "还没有保存 iCloud 分享链接。按下面步骤创建并分享后，把链接贴到输入框即可出现蓝色安装按钮。";
+      install.appendChild(hint);
+    }
+  }
+  if ($("shortcut-config-json")) {
+    $("shortcut-config-json").textContent = JSON.stringify({
+      set: setUrl,
+      clear: clearUrl,
+      status: statusUrl,
+      set_icloud: links.set_icloud_url || "",
+      clear_icloud: links.clear_icloud_url || ""
+    }, null, 2);
+  }
 }
 function bindCopy(id, sourceId) {
   const btn = $(id);
@@ -857,6 +972,21 @@ bindCopy("copy-shortcut-set", "shortcut-set-url");
 bindCopy("copy-shortcut-clear", "shortcut-clear-url");
 bindCopy("copy-shortcut-status", "shortcut-status-url");
 bindCopy("copy-shortcut-guide", "shortcut-guide-set");
+bindCopy("copy-shortcut-config", "shortcut-config-json");
+async function saveShortcutLinks() {
+  try {
+    paint(await api("/api/settings", {method:"POST", body: JSON.stringify({
+      shortcuts: {
+        set_icloud_url: ($("shortcut-set-icloud") && $("shortcut-set-icloud").value) || "",
+        clear_icloud_url: ($("shortcut-clear-icloud") && $("shortcut-clear-icloud").value) || ""
+      }
+    })}));
+    fillShortcutUrls();
+    toast("已保存快捷指令链接", 2000, "ok");
+  } catch (error) { toast(error.message, 3500, "bad"); }
+}
+if ($("save-shortcut-set-icloud")) $("save-shortcut-set-icloud").onclick = saveShortcutLinks;
+if ($("save-shortcut-clear-icloud")) $("save-shortcut-clear-icloud").onclick = saveShortcutLinks;
 $("discover").onclick = scan;
 $("choose").onclick = async () => {
   try {
@@ -874,35 +1004,45 @@ $("clear").onclick = async () => {
     }, "✅ 已恢复真实定位");
   } catch (error) { $("action-error").textContent = error.message; toast(error.message, 3500, "bad"); }
 };
+function savedTargetCoords() {
+  const selected = lastPayload.selected || {};
+  const devices = lastPayload.devices || [];
+  const targets = lastPayload.desired_targets || [];
+  const session = lastPayload.session || {};
+  const current = devices.find((d) => d.udid === selected.udid) || session;
+  const target = targets.find((t) => t.udid === selected.udid && t.enabled !== false) || {};
+  const lat = (current && current.latitude != null) ? current.latitude : (target.lat != null ? target.lat : target.latitude);
+  const lon = (current && current.longitude != null) ? current.longitude : (target.lon != null ? target.lon : target.longitude);
+  if (lat == null || lon == null) return null;
+  return {lat: Number(lat), lon: Number(lon)};
+}
+function goDefaultTokyo() {
+  moveTo(35.6812, 139.7671, 13);
+  toast("已回到默认位置（东京）", 2500, "ok");
+}
 $("locate").onclick = async () => {
-  if (!window.isSecureContext) {
-    const selected = lastPayload.selected || {};
-    const devices = lastPayload.devices || [];
-    const current = devices.find((d) => d.udid === selected.udid && d.latitude != null) || devices.find((d) => d.latitude != null) || lastPayload.session;
-    if (current && current.latitude != null && current.longitude != null) {
-      moveTo(Number(current.latitude), Number(current.longitude), 16);
-      toast("当前页面不是 HTTPS，浏览器不允许获取本机 GPS。已定位到正在模拟的坐标，也可直接在地图点选或搜索地点", 4000);
-      return;
-    }
-    toast("浏览器仅在 HTTPS 下允许获取本机 GPS，请直接在地图点选或搜索地点", 4000);
+  const saved = savedTargetCoords();
+  if (saved) {
+    moveTo(saved.lat, saved.lon, 16);
+    toast("已回到当前保存位置", 2500, "ok");
     return;
   }
-  if (!navigator.geolocation) return toast("浏览器不支持定位");
-  try {
-    await withBusy($("locate"), "定位中...", () => new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => { moveTo(pos.coords.latitude, pos.coords.longitude, 16); toast("✅ 已定位到当前位置", 2500, "ok"); resolve(); },
-        (err) => {
-          const raw = (err && err.message) || "";
-          const insecure = /secure origin/i.test(raw) || err && err.code === 1 && !window.isSecureContext;
-          reject(new Error(insecure
-            ? "浏览器仅在 HTTPS 下允许获取本机 GPS，请直接在地图点选或搜索地点"
-            : "无法获取当前位置，请直接在地图点选或搜索地点"));
-        },
-        {enableHighAccuracy:true, timeout:10000}
-      );
-    }));
-  } catch (error) { toast(error.message, 4000, "bad"); }
+  if (window.isSecureContext && navigator.geolocation) {
+    try {
+      await withBusy($("locate"), "定位中...", () => new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => { moveTo(pos.coords.latitude, pos.coords.longitude, 16); toast("✅ 已定位到当前位置", 2500, "ok"); resolve(); },
+          () => reject(new Error("geo")),
+          {enableHighAccuracy:true, timeout:10000}
+        );
+      }));
+      return;
+    } catch (error) {
+      goDefaultTokyo();
+      return;
+    }
+  }
+  goDefaultTokyo();
 };
 $("add-fav").onclick = () => {
   $("favModalCoords").textContent = lon.toFixed(6) + ", " + lat.toFixed(6);

@@ -23,7 +23,7 @@ UDID = "0123456789abcdef0123456789abcdef01234567"
 
 
 def test_version_is_040():
-    assert __version__ == "0.4.0"
+    assert __version__ == "0.4.1"
 
 
 def test_gcj_and_bd09_convert_inside_china():
@@ -155,7 +155,8 @@ def test_web_page_shortcut_and_windows_tool_copy():
     assert "/api/shortcut/clear" in html
     assert "下载 Windows 一键配对工具 (.bat)" in html
     assert "replace: true" in html
-    assert "已定位到正在模拟的坐标" in html
+    assert "已回到当前保存位置" in html
+    assert "一键安装 iOS 快捷指令" in html
     assert "window.isSecureContext" in html
     assert "Only secure origins are allowed" not in html
     assert "获取 URL 内容" in html

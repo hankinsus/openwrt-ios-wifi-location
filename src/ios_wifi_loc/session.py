@@ -211,6 +211,206 @@ def _put_session(data: dict, udid: str, session: dict | None) -> None:
         data["session"] = None if session is None else sessions.get(udid)
 
 
+def desired_targets_map(data: dict) -> dict:
+    targets = data.get("desired_targets")
+    if not isinstance(targets, dict):
+        targets = {}
+        data["desired_targets"] = targets
+    return targets
+
+
+def _target_coords(item: dict) -> tuple[str | None, str | None]:
+    lat = item.get("lat", item.get("latitude"))
+    lon = item.get("lon", item.get("longitude"))
+    if lat is None or lon is None:
+        return None, None
+    return str(lat), str(lon)
+
+
+def remember_desired_target(
+    store: StateStore,
+    *,
+    udid: str,
+    lat: str,
+    lon: str,
+    profile: str,
+    transport: str | None = None,
+    host: str | None = None,
+) -> dict:
+    with store.transaction() as data:
+        selected = data.get("selected") if isinstance(data.get("selected"), dict) else {}
+        targets = desired_targets_map(data)
+        record = {
+            "udid": udid,
+            "lat": str(lat),
+            "lon": str(lon),
+            "latitude": str(lat),
+            "longitude": str(lon),
+            "profile": profile,
+            "transport": transport or selected.get("transport"),
+            "host": host if host is not None else selected.get("host"),
+            "enabled": True,
+        }
+        targets[udid] = record
+        data["desired_targets"] = targets
+        return dict(record)
+
+
+def forget_desired_target(store: StateStore, udid: str | None) -> None:
+    if not udid:
+        return
+    with store.transaction() as data:
+        targets = desired_targets_map(data)
+        targets.pop(udid, None)
+        data["desired_targets"] = targets
+
+
+def backfill_desired_targets(data: dict) -> dict:
+    """Promote leftover session coordinates so an upgrade keeps auto-resume."""
+    targets = desired_targets_map(data)
+    selected = data.get("selected") if isinstance(data.get("selected"), dict) else {}
+    changed = False
+    for udid, session in _sessions_map(data).items():
+        if not isinstance(session, dict) or udid in targets:
+            continue
+        lat, lon = _target_coords(session)
+        if not lat or not lon:
+            continue
+        targets[udid] = {
+            "udid": udid,
+            "lat": lat,
+            "lon": lon,
+            "latitude": lat,
+            "longitude": lon,
+            "profile": session.get("profile") or "ios17",
+            "transport": session.get("transport") or selected.get("transport"),
+            "host": session.get("host") if "host" in session else selected.get("host"),
+            "enabled": True,
+        }
+        changed = True
+    data["desired_targets"] = targets
+    return data if changed or targets else data
+
+
+def list_enabled_desired_targets(data: dict) -> list[dict]:
+    backfill_desired_targets(data)
+    items = []
+    for udid, item in desired_targets_map(data).items():
+        if not isinstance(item, dict) or item.get("enabled") is False:
+            continue
+        lat, lon = _target_coords(item)
+        if not lat or not lon:
+            continue
+        row = dict(item)
+        row["udid"] = udid
+        row["lat"] = lat
+        row["lon"] = lon
+        row["latitude"] = lat
+        row["longitude"] = lon
+        row["enabled"] = True
+        items.append(row)
+    return items
+
+
+def auto_restore_enabled() -> bool:
+    return os.environ.get("IOS_WIFI_LOC_NO_AUTORESTORE", "").strip().lower() not in {"1", "true", "yes"}
+
+
+_RESUME_LOCK = __import__("threading").Lock()
+
+
+def resume_desired_targets(
+    store: StateStore,
+    binary: str,
+    *,
+    timeout: float = 20,
+    grace: float = 2,
+    allow_usb: bool = True,
+    allow_legacy: bool = False,
+    apply=None,
+    holding=None,
+) -> list[dict]:
+    """Relaunch holders for every enabled saved target that is not already holding.
+
+    `apply` and `holding` are injectable so unit tests can stay process-free.
+    When `apply` is omitted, this is a no-op if auto-restore is disabled.
+    """
+    if apply is None and not auto_restore_enabled():
+        return []
+    if not _RESUME_LOCK.acquire(blocking=False):
+        return []
+    try:
+        data = store.load()
+        data = _release_stale_holder(store, data)
+        backfill_desired_targets(data)
+        store.save(data)
+        previous = dict(data["selected"]) if isinstance(data.get("selected"), dict) else None
+        results: list[dict] = []
+        for item in list_enabled_desired_targets(data):
+            udid = item["udid"]
+            session = _session_for(data, udid) or {}
+            pid = session.get("pid")
+            is_holding = False
+            if holding is not None:
+                is_holding = bool(holding(item, session))
+            elif isinstance(pid, int) and pid > 1:
+                is_holding = holder_matches(pid)
+            if is_holding:
+                results.append({"udid": udid, "action": "already_holding", "ok": True, "lat": item["lat"], "lon": item["lon"]})
+                continue
+            if apply is not None:
+                outcome = apply(item)
+                ok = True if outcome is None else bool(getattr(outcome, "ok", outcome))
+                results.append({"udid": udid, "action": "resumed", "ok": ok, "lat": item["lat"], "lon": item["lon"]})
+                data = store.load()
+                continue
+            selected = select_device(
+                store,
+                udid=udid,
+                transport=item.get("transport") or "mobdev2",
+                host=item.get("host"),
+                name=None,
+                allow_usb=allow_usb,
+                usbmux_address=None,
+            )
+            if not selected.ok:
+                results.append({"udid": udid, "action": "select_failed", "ok": False, "error": selected.summary})
+                continue
+            outcome = set_location(
+                store,
+                binary,
+                latitude=item["lat"],
+                longitude=item["lon"],
+                profile=item.get("profile") or "ios17",
+                timeout=timeout,
+                grace=grace,
+                foreground=False,
+                allow_usb=allow_usb,
+                allow_legacy=allow_legacy,
+                replace=True,
+            )
+            results.append(
+                {
+                    "udid": udid,
+                    "action": "resumed" if outcome.ok else "failed",
+                    "ok": outcome.ok,
+                    "code": outcome.code,
+                    "summary": outcome.summary,
+                    "lat": item["lat"],
+                    "lon": item["lon"],
+                }
+            )
+            data = store.load()
+        if previous is not None:
+            data = store.load()
+            data["selected"] = previous
+            _sync_legacy_session(data)
+            store.save(data)
+        return results
+    finally:
+        _RESUME_LOCK.release()
+
+
 def _sync_legacy_session(data: dict) -> None:
     selected = data.get("selected") or {}
     udid = selected.get("udid") if isinstance(selected, dict) else None
@@ -272,6 +472,7 @@ def _release_stale_holder(store: StateStore, data: dict) -> dict:
         session["holding"] = False
         session["watchdog_active"] = False
         session["waiting_reconnect"] = False
+        session["waiting_for_wifi"] = False
         session["ended_reason"] = "not_running" if not pid_alive(pid) else "cmdline_mismatch"
         sessions[udid] = session
         changed = True
@@ -492,7 +693,7 @@ def set_location(
     usbmux_address: str | None = None,
     replace: bool = False,
 ) -> Outcome:
-    return _remember(
+    outcome = _remember(
         store,
         _apply_location(
             store,
@@ -509,6 +710,17 @@ def set_location(
             replace=replace,
         ),
     )
+    if outcome.ok:
+        udid = (outcome.details or {}).get("udid")
+        if udid:
+            remember_desired_target(
+                store,
+                udid=str(udid),
+                lat=str((outcome.details or {}).get("latitude") or latitude),
+                lon=str((outcome.details or {}).get("longitude") or longitude),
+                profile=str((outcome.details or {}).get("profile") or profile),
+            )
+    return outcome
 
 
 def _wait_foreground(store: StateStore, binary: str, proc, timeout: float, allow_usb: bool) -> Outcome:
@@ -574,6 +786,7 @@ def stop_holder_for_udid(store: StateStore, udid: str | None, *, timeout: float)
                 current["holding"] = False
                 current["watchdog_active"] = False
                 current["waiting_reconnect"] = False
+                current["waiting_for_wifi"] = False
                 _put_session(data, udid, current)
                 store.save(data)
     return holder
@@ -655,7 +868,10 @@ def clear_location(
     allow_usb: bool,
     profile: str | None = None,
 ) -> Outcome:
-    return _remember(store, _clear_location(store, binary, timeout=timeout, allow_usb=allow_usb, profile=profile))
+    outcome = _remember(store, _clear_location(store, binary, timeout=timeout, allow_usb=allow_usb, profile=profile))
+    if outcome.ok:
+        forget_desired_target(store, (outcome.details or {}).get("udid"))
+    return outcome
 
 
 def _public_sessions(data: dict) -> list[dict]:
@@ -673,6 +889,9 @@ def _public_sessions(data: dict) -> list[dict]:
         except (TypeError, ValueError):
             item["reconnect_count"] = 0
         item["waiting_reconnect"] = bool(session.get("waiting_reconnect") or (item["watchdog_active"] and not session.get("holding")))
+        item["waiting_for_wifi"] = bool(session.get("waiting_for_wifi"))
+        item["tunnel_address"] = session.get("tunnel_address")
+        item["tunnel_port"] = session.get("tunnel_port")
         items.append(item)
     return items
 
@@ -680,7 +899,10 @@ def _public_sessions(data: dict) -> list[dict]:
 def status(store: StateStore) -> Outcome:
     data = store.load()
     data = _release_stale_holder(store, data)
+    if backfill_desired_targets(data) is not None:
+        store.save(data)
     sessions = _public_sessions(data)
+    desired = list_enabled_desired_targets(data)
     selected = data.get("selected")
     selected_udid = selected.get("udid") if isinstance(selected, dict) else None
     session = _session_for(data, selected_udid)
@@ -712,6 +934,7 @@ def status(store: StateStore) -> Outcome:
             "command_accepted": bool(last.get("accepted")),
             "last_command": last,
             "favorites": data.get("favorites") or [],
+            "desired_targets": desired,
             "phone_location": "unconfirmed",
             "tunneld": tunneld,
         },

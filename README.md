@@ -1,4 +1,4 @@
-# ios-wifi-loc 0.4.0
+# ios-wifi-loc 0.4.1
 
 在 R4S 或其它 OpenWrt / Debian / Ubuntu 机器上，**一条命令**完成下载、补齐环境和安装。升级同一条命令即可，会保留已有口令和配对文件：
 
@@ -53,13 +53,15 @@ sh scripts/oneclick-uninstall.sh
 
 v0.3.0 按 NanoPi R4S（OpenWrt 24.10.0）与 iPhone 17 Pro（iOS 27.2.1）上的无线 `tunneld` + `--tunnel <UDID>` 定位流程做了相应调整：安装后会自动常驻 `pymobiledevice3 remote tunneld --protocol tcp --no-usb --no-usbmux --mobdev2`，网页改定位走 `--tunnel`。OpenWrt 的状态目录默认是 `/etc/ios-wifi-loc`（可写闪存）。`/var` 在 OpenWrt 上通常指向内存盘，所以不再把口令和配对文件放在 `/var/lib/ios-wifi-loc`。从旧版本升级时，会把已有口令、收藏和 `.plist` 迁移过来，不会轮换口令。
 
-局域网页面**默认免密**。打开 `http://<路由器地址>:47321` 即可使用。这只适合受信局域网，请勿把 47321 端口暴露到公网。若需要口令，安装或启动时加 `--require-auth`，口令仍在状态目录的 `web.secret`，权限 `0600`。
+局域网页面**默认免密**。打开 `http://<路由器地址>:19443` 即可使用。这只适合受信局域网，请勿把 19443 端口暴露到公网。若需要口令，安装或启动时加 `--require-auth`，口令仍在状态目录的 `web.secret`，权限 `0600`。
 
 支持同时管理多台 iPhone：每台设备有独立的模拟进程，给 B 设定位不会打断 A；清除某一台也只影响这一台。
 
 v0.3.1 为每台正在模拟的设备加上自动重连守护：当手机休眠或 Wi-Fi 隧道复位导致 `simulate-location set` 因 `Network unreachable` / `DTX reader exiting` 退出时，会等待隧道恢复并按原坐标重新发起，直到你在页面上清除或改选其它坐标。网页顶部用设备下拉菜单选择已发现的 iPhone，配对卡片提供可复制的 Windows 三步说明。按钮点击会有按压和加载反馈；在普通 HTTP 局域网地址上，「当前位置」不再调用浏览器 GPS（会因非 HTTPS 被拒绝），请直接在地图点选或搜索地点。
 
 v0.4.0 增加本机 iOS 快捷指令与地图分享接口（`/api/shortcut/set` 可解析高德 / 苹果 / 谷歌 / 百度分享链接或坐标，并自动把 GCJ-02、BD-09 转成 WGS-84），网页或快捷指令再次设置同一台设备时会自动替换旧坐标。配对页可下载 Windows 一键配对工具，并把 `C:\ProgramData\Apple\Lockdown\` 里的 `.plist` 直接上传到路由器；配对列表会显示设备名称。安装脚本自动识别 OpenWrt / Debian / Alpine，升级时保留状态。
+
+v0.4.1 将网页默认端口改为 `19443`。Wi-Fi 断开再连上时，自动重连守护会发现 tunneld 换了新的隧道地址/端口，主动结束卡住的旧进程并按原坐标重新设置定位。设置过的坐标会写入状态文件，只有点「一键恢复真实定位」才会清除；路由器重启或服务拉起后，只要手机重新连上 Wi-Fi，就会自动按保存的坐标重新定位。网页默认地址改为 `http://<路由器地址>:19443`。
 
 iPhone 本机精简版在 `ios-native/`，许可证是 AGPL-3.0，和这个 Python 控制台不是同一个程序。本机程序用免费 Apple ID 侧载，描述文件大约 7 天有效；付费开发者计划不是前提。这个 Python 控制台不在 R4S 上安装该 App，因此没有该 App 的 7 天签名。手机开发者模式是系统开关，不是会员。
 
@@ -71,7 +73,7 @@ iPhone 本机精简版在 `ios-native/`，许可证是 AGPL-3.0，和这个 Pyth
 
 OpenWrt 写入 procd 脚本，Debian/Ubuntu 写入 systemd 单元。两者都会拉起网页控制台和 `tunneld`，失败后有限次重试。进程重启不会重新发送坐标。编译用的 gcc、头文件和 libimobiledevice 只在 pymobiledevice3 不能直接装上时才补。启动时会把 `/etc/ios-wifi-loc/lockdown/*.plist` 同步到 `/var/lib/lockdown`，以便无线发现能用到配对记录。
 
-默认只绑定指定网卡的地址，端口 `47321`。安装输出只打印口令文件路径，不打印口令内容。
+默认只绑定指定网卡的地址，端口 `19443`。安装输出只打印口令文件路径，不打印口令内容。
 
 128MB/MIPS 的 XE300 仍然不承诺能跑上游。
 
@@ -101,7 +103,7 @@ pymobiledevice3 lockdown wifi-connections on
 
 ## 日常使用
 
-1. 浏览器打开 `http://<路由器局域网地址>:47321`。默认免密，进入后即可操作。
+1. 浏览器打开 `http://<路由器局域网地址>:19443`。默认免密，进入后即可操作。
 2. 页面会自动扫描局域网里的 iPhone。点「选择此设备」，或点「重新扫描」。
 3. 在地图上点选位置、搜索地名、粘贴地图链接，或点城市预设。坐标按 WGS-84 发给手机；选用高德图层时会自动做 GCJ-02 转换。
 4. 点「设置定位」或城市按钮，立即向当前选中的手机发送坐标。可再点另一台手机，给它设置不同的位置，不会打断第一台的模拟。

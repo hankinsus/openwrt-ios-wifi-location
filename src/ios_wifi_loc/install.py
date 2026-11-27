@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ios_wifi_loc.binary import infer_binary_from_python
 from ios_wifi_loc.pairing import sync_lockdown
-from ios_wifi_loc.service import load_or_create_secret, secret_path
+from ios_wifi_loc.service import DEFAULT_PORT, load_or_create_secret, secret_path
 
 _INTERFACE = re.compile(r"^[A-Za-z][A-Za-z0-9._:-]{0,14}$")
 
@@ -105,6 +105,13 @@ def preflight(root: Path) -> dict:
     }
 
 
+def _normalize_port(port: int | None) -> int:
+    value = DEFAULT_PORT if port is None else int(port)
+    if value < 1 or value > 65535:
+        raise ValueError("端口必须在 1 到 65535 之间")
+    return value
+
+
 def _serve_command(
     executable: str,
     state_dir: Path,
@@ -112,6 +119,7 @@ def _serve_command(
     binary: str | None,
     *,
     require_auth: bool,
+    port: int | None = None,
 ) -> str:
     parts = [executable, "-m", "ios_wifi_loc", "--state-dir", str(state_dir)]
     if binary:
@@ -120,6 +128,7 @@ def _serve_command(
     checked = validate_interface(interface)
     if checked:
         parts.extend(["--interface", checked])
+    parts.extend(["--port", str(_normalize_port(port))])
     if require_auth:
         parts.append("--require-auth")
     else:
@@ -132,8 +141,8 @@ def _tunneld_command(binary: str) -> str:
     return " ".join(shlex.quote(part) for part in parts)
 
 
-def _procd_unit(executable: str, state_dir: Path, interface: str | None, binary: str, *, require_auth: bool) -> str:
-    command = _serve_command(executable, state_dir, interface, binary, require_auth=require_auth)
+def _procd_unit(executable: str, state_dir: Path, interface: str | None, binary: str, *, require_auth: bool, port: int | None = None) -> str:
+    command = _serve_command(executable, state_dir, interface, binary, require_auth=require_auth, port=port)
     tunneld = _tunneld_command(binary)
     persist = shlex.quote(str(state_dir / "lockdown"))
     return (
@@ -183,8 +192,8 @@ def _procd_unit(executable: str, state_dir: Path, interface: str | None, binary:
     )
 
 
-def _systemd_unit(executable: str, state_dir: Path, interface: str | None, binary: str | None, *, require_auth: bool) -> str:
-    command = _serve_command(executable, state_dir, interface, binary, require_auth=require_auth)
+def _systemd_unit(executable: str, state_dir: Path, interface: str | None, binary: str | None, *, require_auth: bool, port: int | None = None) -> str:
+    command = _serve_command(executable, state_dir, interface, binary, require_auth=require_auth, port=port)
     persist = shlex.quote(str(state_dir / "lockdown"))
     pre = (
         "/bin/sh -c "
@@ -235,8 +244,8 @@ def _systemd_tunneld_unit(binary: str) -> str:
     )
 
 
-def _openrc_unit(executable: str, state_dir: Path, interface: str | None, binary: str | None, *, require_auth: bool) -> str:
-    command = _serve_command(executable, state_dir, interface, binary, require_auth=require_auth)
+def _openrc_unit(executable: str, state_dir: Path, interface: str | None, binary: str | None, *, require_auth: bool, port: int | None = None) -> str:
+    command = _serve_command(executable, state_dir, interface, binary, require_auth=require_auth, port=port)
     persist = shlex.quote(str(state_dir / "lockdown"))
     return (
         "#!/sbin/openrc-run\n"
@@ -286,6 +295,7 @@ def install_files(
     interface: str | None = None,
     binary: str | None = None,
     require_auth: bool = False,
+    port: int | None = None,
 ) -> dict:
     root = root.resolve()
     kind = detect_init(root)
@@ -304,7 +314,7 @@ def install_files(
         destination = root / "etc/init.d/ios-wifi-loc"
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(
-            _openrc_unit(exe, state_dir, interface, resolved_binary, require_auth=require_auth),
+            _openrc_unit(exe, state_dir, interface, resolved_binary, require_auth=require_auth, port=port),
             encoding="utf-8",
         )
         os.chmod(destination, 0o755)
@@ -317,7 +327,7 @@ def install_files(
         destination = root / "etc/systemd/system/ios-wifi-loc.service"
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(
-            _systemd_unit(exe, state_dir, interface, resolved_binary, require_auth=require_auth),
+            _systemd_unit(exe, state_dir, interface, resolved_binary, require_auth=require_auth, port=port),
             encoding="utf-8",
         )
         companion = root / "etc/systemd/system/ios-wifi-loc-tunneld.service"
@@ -328,7 +338,7 @@ def install_files(
         destination = root / "etc/init.d/ios-wifi-loc"
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(
-            _procd_unit(exe, state_dir, interface, resolved_binary, require_auth=require_auth),
+            _procd_unit(exe, state_dir, interface, resolved_binary, require_auth=require_auth, port=port),
             encoding="utf-8",
         )
         os.chmod(destination, 0o755)
@@ -341,6 +351,7 @@ def install_files(
         "state_dir": str(state_dir),
         "binary": resolved_binary,
         "require_auth": require_auth,
+        "port": _normalize_port(port),
         "migration": notes,
     }
 

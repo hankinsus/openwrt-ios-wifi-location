@@ -5,7 +5,9 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -577,3 +579,85 @@ def test_watchdog_reconnects_after_network_unreachable(cli):
     _proc, status = cli.run(["status"], extra_env=extra)
     sessions = {item["udid"]: item for item in status["details"]["sessions"]}
     assert UDID not in sessions or sessions[UDID]["alive"] is False
+
+
+def test_watchdog_respawns_when_tunnel_endpoint_changes(cli):
+    """Hung child + Wi-Fi flap must kill the stale process and respawn on the new tunnel port."""
+    state = {"body": {UDID: [{"tunnel-address": "fd53::1", "tunnel-port": 50001}]}}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            body = json.dumps(state["body"]).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: object) -> None:  # noqa: A003
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    url = f"http://127.0.0.1:{server.server_address[1]}/"
+    try:
+        extra = {
+            "IOS_WIFI_LOC_TUNNELD_URL": url,
+            "IOS_WIFI_LOC_WATCHDOG_POLL": "0.08",
+            "IOS_WIFI_LOC_WATCHDOG_SETTLE": "0.05",
+            "IOS_WIFI_LOC_WATCHDOG_BACKOFF": "0.05,0.05,0.05",
+        }
+        selected, _ = cli.run(["select", "--udid", UDID, "--transport", "mobdev2"], extra_env=extra)
+        assert selected.returncode == 0
+        started, payload = cli.run(
+            ["set", "--profile", "ios17", "--latitude", "35.6812", "--longitude", "139.7671", "--startup-grace", "0.2"],
+            extra_env=extra,
+        )
+        assert started.returncode == 0, payload
+        assert payload["code"] == "SET_HOLDING"
+        calls = [item for item in cli.logged() if "simulate-location" in item and "set" in item]
+        assert calls and "--tunnel" in calls[-1]
+        _proc, status = cli.run(["status"], extra_env=extra)
+        item = {row["udid"]: row for row in status["details"]["sessions"]}[UDID]
+        assert item["alive"] is True
+        child_pid = item.get("child_pid")
+        assert isinstance(child_pid, int) and child_pid > 1
+        os.kill(child_pid, 0)
+
+        # Wi-Fi drops; the old holder stays hung on the dead socket. Then Wi-Fi
+        # comes back with a new RSD port.
+        state["body"] = {}
+        time.sleep(0.2)
+        state["body"] = {UDID: [{"tunnel-address": "fd53::1", "tunnel-port": 50002}]}
+
+        status = None
+        for _ in range(50):
+            time.sleep(0.1)
+            _proc, status = cli.run(["status"], extra_env=extra)
+            sessions = {row["udid"]: row for row in status["details"]["sessions"]}
+            item = sessions.get(UDID) or {}
+            if (
+                item.get("alive")
+                and int(item.get("reconnect_count") or 0) >= 1
+                and item.get("child_pid") not in {None, child_pid}
+            ):
+                break
+        else:
+            raise AssertionError(f"watchdog did not respawn on new tunnel: {status}")
+
+        item = {row["udid"]: row for row in status["details"]["sessions"]}[UDID]
+        assert int(item["reconnect_count"]) >= 1
+        assert item["alive"] is True
+        assert item["watchdog_active"] is True
+        assert item["latitude"] == "35.6812"
+        new_child = item.get("child_pid")
+        assert isinstance(new_child, int) and new_child != child_pid
+        os.kill(new_child, 0)
+        with pytest.raises(ProcessLookupError):
+            os.kill(child_pid, 0)
+        calls = [item for item in cli.logged() if "simulate-location" in item and "set" in item]
+        assert len(calls) >= 2
+    finally:
+        server.shutdown()
+        server.server_close()
