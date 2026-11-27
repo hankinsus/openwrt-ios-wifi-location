@@ -12,12 +12,12 @@ UDID = "0123456789abcdef0123456789abcdef01234567"
 
 
 def test_version_and_default_port():
-    assert __version__ == "0.5.16"
+    assert __version__ == "0.5.17"
     assert DEFAULT_PORT == 19443
     html = render_page("csrf", no_auth=True)
     assert "47321" not in html
     assert "等待 Wi-Fi / 隧道恢复后自动重连…" in html
-    assert "v0.5.16" in html
+    assert "v0.5.17" in html
     assert html.index('id="map"') < html.index('id="device-select"')
     assert "opt.textContent = deviceTitle(item);" in html
     assert "deviceTitle(item) + \" · \" + deviceStatusText" not in html

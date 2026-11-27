@@ -29,9 +29,13 @@ body { font-family:-apple-system,system-ui,sans-serif; background:var(--bg); col
 .btn { flex:1; min-width:0; padding:12px 16px; border:none; border-radius:10px; font-size:14px; font-weight:500; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; text-align:center; color:#fff; }
 .btn:disabled { opacity:.6; cursor:default; }
 .btn-primary { background:var(--blue); }
+.btn-primary:hover:not(:disabled) { background:#0066d6; }
 .btn-secondary { background:#e5e5ea; color:#333; }
+.btn-secondary:hover:not(:disabled) { background:#d8d8de; }
 .btn-danger { background:var(--red); }
+.btn-danger:hover:not(:disabled) { background:#e02d26; }
 .btn.success { background:var(--green); }
+.btn.success:hover:not(:disabled) { background:#2fb350; }
 .btn-sm { flex:none; min-width:auto; padding:6px 12px; font-size:12px; border-radius:8px; }
 .section-title { font-size:14px; font-weight:600; color:var(--text); margin:16px 0 8px 0; }
 .input-row { display:flex; gap:8px; margin-top:10px; min-width:0; }
@@ -43,13 +47,16 @@ label { display:block; font-size:13px; color:#3a3a3c; margin-top:8px; }
 .toast.show { opacity:1; }
 .layer-switch { position:absolute; top:10px; left:auto; right:12px; width:auto; max-width:calc(100% - 56px); box-sizing:border-box; z-index:1000; display:flex; gap:4px; background:rgba(255,255,255,.92); border-radius:8px; padding:4px; box-shadow:0 2px 8px rgba(0,0,0,.15); flex-wrap:wrap; justify-content:flex-end; align-content:flex-start; min-width:0; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; }
 .layer-btn { border:none; background:transparent; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; color:#333; font-weight:500; flex:0 0 auto; min-width:0; white-space:nowrap; }
+.layer-btn:hover:not(.active) { background:#e8e8ed; }
 .layer-btn.active { background:var(--blue); color:#fff; }
 .active-loc { background:var(--bg); border-radius:8px; padding:10px 12px; font-size:13px; color:#333; margin-top:8px; }
 .active-loc .label { font-size:11px; color:var(--gray); margin-bottom:4px; }
 .active-loc .value { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; }
 .fav-list, .device-list { max-height:280px; overflow-y:auto; }
 .fav-item, .device-card { display:flex; align-items:center; gap:8px; padding:10px 12px; background:var(--bg); border-radius:8px; margin-bottom:6px; cursor:pointer; border:1px solid transparent; }
-.device-card.selected { border-color:var(--blue); background:#e8f1ff; }
+.fav-item:hover, .device-card:hover { border-color:#d1d1d6; background:#ececef; }
+.fav-item.selected, .device-card.selected { border-color:var(--blue); background:#e8f1ff; }
+.fav-item:active, .device-card:active { background:#e5e5ea; }
 .fav-item .fav-info, .device-card .fav-info { flex:1; min-width:0; }
 .fav-item .fav-name, .device-card .fav-name { font-size:14px; font-weight:500; color:#333; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .fav-item .fav-coords, .device-card .fav-coords { font-size:11px; color:#8e8e93; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-top:2px; word-break:break-all; }
@@ -62,14 +69,18 @@ label { display:block; font-size:13px; color:#3a3a3c; margin-top:8px; }
 .badge-off { background:#eee; color:#6e6e73; }
 .badge-wait { background:#fff3cd; color:#8a6d00; }
 .presets { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px; margin-top:10px; }
-.presets button { border:none; background:#e5e5ea; color:var(--text); border-radius:10px; padding:8px 12px; font-size:15px; font-weight:500; cursor:pointer; min-height:40px; line-height:1.2; white-space:nowrap; }
+.presets button { border:none; background:#e5e5ea; color:var(--text); border-radius:10px; padding:6px 10px; font-size:13.5px; font-weight:500; cursor:pointer; min-height:36px; line-height:1.2; white-space:nowrap; }
 .presets button:hover, .presets button:focus-visible { background:#d8d8de; }
 .presets button.is-selected { background:#e8f1ff; color:var(--blue); font-weight:600; }
-.drop { margin-top:10px; border:1px dashed #c7c7cc; border-radius:10px; padding:16px; text-align:center; color:var(--gray); font-size:13px; background:#fafafa; }
+.drop { margin-top:10px; border:1px dashed #c7c7cc; border-radius:10px; padding:16px; text-align:center; color:var(--gray); font-size:13px; background:#fafafa; cursor:pointer; }
+.drop:hover { border-color:var(--blue); background:#f2f7ff; color:var(--blue); }
+.drop:active { background:#e8f1ff; }
 .drop.drag { border-color:var(--blue); background:#e8f1ff; color:var(--blue); }
 .pair-cmds { background:var(--bg); border-radius:8px; padding:10px 12px; font-size:12px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; margin-top:8px; color:#333; max-width:100%; }
 details { margin-top:8px; }
-details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
+details summary { cursor:pointer; color:#3a3a3c; font-size:13px; border-radius:8px; padding:6px 4px; }
+details summary:hover { color:var(--blue); background:#f2f2f7; }
+details summary:active { background:#e8e8ed; }
 .pair-manual { margin-top:14px; }
 .pair-manual summary { font-weight:600; font-size:14px; color:var(--text); padding:4px 0; }
 .modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.4); z-index:10000; display:none; align-items:center; justify-content:center; padding:20px; }
@@ -86,12 +97,12 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 #logout-wrap { margin-top:8px; }
 #logout-wrap[hidden] { display:none; margin:0; }
 #map-fallback { display:none; padding:24px 16px; text-align:center; color:var(--gray); font-size:13px; }
-.btn, .presets button, .layer-btn, .copy-btn, .fav-del {
+.btn, .presets button, .layer-btn, .copy-btn, .fav-del, .fav-item, .menu-select-toggle, .menu-option, .drop, details summary {
   -webkit-tap-highlight-color: transparent;
-  transition: transform .08s ease, opacity .12s ease, box-shadow .12s ease, background .15s ease, filter .12s ease;
+  transition: transform .08s ease, opacity .12s ease, box-shadow .12s ease, background .15s ease, filter .12s ease, border-color .15s ease, color .15s ease;
   box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
-.btn:active:not(:disabled), .presets button:active, .layer-btn:active, .copy-btn:active, .fav-del:active {
+.btn:active:not(:disabled), .presets button:active, .layer-btn:active, .copy-btn:active, .fav-del:active, .fav-item:active, .menu-select-toggle:active, .menu-option:active, .drop:active, details summary:active {
   transform: scale(0.97);
   opacity: .88;
   box-shadow: 0 0 0 0 rgba(0,0,0,0);
@@ -106,6 +117,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .device-select { font-size:16px; padding:0; margin-top:10px; font-weight:500; background:transparent; width:100%; }
 .menu-select { position:relative; width:100%; }
 .menu-select-toggle { position:relative; width:100%; min-height:44px; text-align:left; font-size:16px; font-weight:500; padding:12px 36px 12px 14px; border:1px solid #d1d1d6; border-radius:8px; background:#fff; color:var(--text); cursor:pointer; appearance:none; -webkit-appearance:none; }
+.menu-select-toggle:hover, .menu-select-toggle:focus-visible { background:#f2f2f7; border-color:#c7c7cc; }
 .menu-select-toggle:after { content:""; position:absolute; right:14px; top:50%; width:8px; height:8px; margin-top:-6px; border-right:2px solid #6e6e73; border-bottom:2px solid #6e6e73; transform:rotate(45deg); pointer-events:none; }
 .menu-select-list { position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:30; background:#fff; color:var(--text); border:1px solid #d1d1d6; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.12); max-height:240px; overflow-y:auto; padding:4px; }
 .menu-option { display:block; width:100%; min-height:44px; text-align:left; border:none; background:transparent; border-radius:8px; padding:10px 12px; font-size:15px; color:var(--text); cursor:pointer; }
@@ -138,7 +150,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 @media (max-width:1024px) {
   #map { height:36vh; min-height:280px; max-height:400px; }
   .presets { gap:10px; }
-  .presets button { font-size:16px; min-height:44px; padding:10px 8px; }
+  .presets button { font-size:14px; min-height:40px; padding:8px 8px; }
   .fav-item { min-height:44px; padding:12px; }
   .fav-del { width:36px; height:36px; }
 }
@@ -349,6 +361,7 @@ let lat = 35.6812, lon = 139.7671;
 let map = null, marker = null, currentLayer = null, tiles = null, layerName = "satellite";
 let lastPayload = {};
 let pendingFiles = [];
+let selectedFavoriteId = null;
 
 function toast(msg, ms, kind) {
   const t = $("toast");
@@ -616,6 +629,33 @@ function moveTo(newLat, newLon, zoom) {
   setPos(newLat, newLon);
   if (map) map.setView([displayLatLng().lat, displayLatLng().lon], zoom || 15);
 }
+function revealMap() {
+  const target = document.querySelector(".map-shell") || $("map");
+  if (target && typeof target.scrollIntoView === "function") {
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  } else {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  setTimeout(() => { if (map) map.invalidateSize(); }, 280);
+}
+function previewLocation(newLat, newLon, zoom, hint) {
+  moveTo(newLat, newLon, zoom);
+  revealMap();
+  if (hint) toast(hint, 2800, "ok");
+}
+function favoriteKey(item) {
+  return String((item && (item.id || (item.name + ":" + item.latitude + "," + item.longitude))) || "");
+}
+function markFavoriteSelected(item) {
+  selectedFavoriteId = favoriteKey(item);
+  document.querySelectorAll(".fav-item").forEach((el) => {
+    el.classList.toggle("selected", el.dataset.favId === selectedFavoriteId);
+  });
+}
+function clearFavoriteSelection() {
+  selectedFavoriteId = null;
+  document.querySelectorAll(".fav-item.selected").forEach((el) => el.classList.remove("selected"));
+}
 
 function initMap() {
   if (typeof L === "undefined") {
@@ -676,7 +716,12 @@ function paint(data) {
   favs.forEach((item) => {
     const row = document.createElement("div");
     row.className = "fav-item";
-    row.onclick = () => { moveTo(parseFloat(item.latitude), parseFloat(item.longitude), 15); };
+    row.dataset.favId = favoriteKey(item);
+    if (selectedFavoriteId && row.dataset.favId === selectedFavoriteId) row.classList.add("selected");
+    row.onclick = () => {
+      markFavoriteSelected(item);
+      previewLocation(parseFloat(item.latitude), parseFloat(item.longitude), 15, "已选中收藏「" + item.name + "」，点击「设置定位」生效");
+    };
     const info = document.createElement("div");
     info.className = "fav-info";
     const name = document.createElement("div");
@@ -859,8 +904,8 @@ async function searchPlace() {
   if (!q) return toast("请输入地名或坐标");
   const parsed = parseCoordQuery(q);
   if (parsed) {
-    moveTo(parsed.lat, parsed.lon, 15);
-    toast("已跳转到指定坐标", 2000, "ok");
+    clearFavoriteSelection();
+    previewLocation(parsed.lat, parsed.lon, 15, "已跳转到指定坐标，点击「设置定位」生效");
     return;
   }
   toast("搜索中…");
@@ -868,8 +913,9 @@ async function searchPlace() {
     const r = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(q), {headers:{"Accept-Language":"zh-CN,zh;q=0.9,en;q=0.6"}});
     const results = await r.json();
     if (!results.length) return toast("未找到地点: " + q);
-    moveTo(parseFloat(results[0].lat), parseFloat(results[0].lon), 15);
-    toast((results[0].display_name || q).slice(0, 40));
+    const label = (results[0].display_name || q).slice(0, 40);
+    clearFavoriteSelection();
+    previewLocation(parseFloat(results[0].lat), parseFloat(results[0].lon), 15, "已定位地图到「" + label + "」，点击「设置定位」生效");
   } catch (e) { toast("搜索失败（需要浏览器能访问公开地图检索）"); }
 }
 
@@ -916,7 +962,9 @@ CITIES.forEach((city) => {
   btn.textContent = city.name;
   btn.onclick = async () => {
     document.querySelectorAll("#presets button").forEach((item) => item.classList.toggle("is-selected", item === btn));
+    clearFavoriteSelection();
     moveTo(city.lat, city.lon, 14);
+    revealMap();
     await setLocation(true);
   };
   $("presets").appendChild(btn);
@@ -978,21 +1026,20 @@ function savedTargetCoords() {
   return {lat: Number(lat), lon: Number(lon)};
 }
 function goDefaultTokyo() {
-  moveTo(35.6812, 139.7671, 13);
-  toast("已回到默认位置（东京）", 2500, "ok");
+  clearFavoriteSelection();
+  previewLocation(35.6812, 139.7671, 13, "已回到默认位置（东京）");
 }
 $("locate").onclick = async () => {
   const saved = savedTargetCoords();
   if (saved) {
-    moveTo(saved.lat, saved.lon, 16);
-    toast("已回到当前保存位置", 2500, "ok");
+    previewLocation(saved.lat, saved.lon, 16, "已回到当前保存位置");
     return;
   }
   if (window.isSecureContext && navigator.geolocation) {
     try {
       await withBusy($("locate"), "定位中...", () => new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
-          (pos) => { moveTo(pos.coords.latitude, pos.coords.longitude, 16); toast("✅ 已定位到当前位置", 2500, "ok"); resolve(); },
+          (pos) => { previewLocation(pos.coords.latitude, pos.coords.longitude, 16, "✅ 已定位到当前位置"); resolve(); },
           () => reject(new Error("geo")),
           {enableHighAccuracy:true, timeout:10000}
         );
@@ -1036,8 +1083,8 @@ $("parse-url").onclick = () => {
   if (!res) return toast("无法解析坐标格式");
   let a = res.lat, o = res.lon;
   if (res.gcj) { const w = gcjToWgs(a, o); a = w.lat; o = w.lon; }
-  moveTo(a, o, 15);
-  toast("已解析为 WGS-84 坐标");
+  clearFavoriteSelection();
+  previewLocation(a, o, 15, "已解析为 WGS-84 坐标，点击「设置定位」生效");
 };
 $("search").onclick = searchPlace;
 $("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter") searchPlace(); });

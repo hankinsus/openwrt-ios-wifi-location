@@ -5,10 +5,10 @@ from ios_wifi_loc.web_page import render_page
 
 
 def test_version_is_0516():
-    assert __version__ == "0.5.16"
+    assert __version__ == "0.5.17"
     html = render_page("csrf", no_auth=True, platform="")
     assert "<title>WiFi 虚拟定位</title>" in html
-    assert "WiFi 虚拟定位 · v0.5.16" in html
+    assert "WiFi 虚拟定位 · v0.5.17" in html
     assert "v0.5.15" not in html
 
 
@@ -22,12 +22,13 @@ def test_preset_city_buttons_are_large_enough_to_tap():
     assert "padding:6px 10px; font-size:12px" not in html
     assert ".presets { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px;" in html
     assert ".presets button" in html
-    assert "font-size:15px" in html[html.index(".presets button") : html.index(".presets button") + 280]
-    assert "min-height:40px" in html[html.index(".presets button") : html.index(".presets button") + 280]
+    assert "font-size:13.5px" in html[html.index(".presets button") : html.index(".presets button") + 280]
+    assert "min-height:36px" in html[html.index(".presets button") : html.index(".presets button") + 280]
     assert "border-radius:10px" in html[html.index(".presets button") : html.index(".presets button") + 280]
     media = html[html.index("@media (max-width:1024px)") : html.index("@media (max-width:600px)")]
-    assert "font-size:16px" in media
-    assert "min-height:44px" in media
+    assert "font-size:14px" in media
+    assert "min-height:40px" in media
+    assert "padding:8px 8px" in media
     assert ".presets { gap:10px; }" in media
     assert ".fav-item { min-height:44px;" in media
     assert ".presets button:hover, .presets button:focus-visible" in html
