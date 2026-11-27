@@ -9,10 +9,10 @@ from ios_wifi_loc.windows_pair import PS_MARKER, encode_windows_pair_bat, extrac
 
 
 def test_version_is_0412():
-    assert __version__ == "0.4.13"
+    assert __version__ == "0.4.14"
     html = render_page("csrf", no_auth=True, platform="")
     assert "<title>WiFi 虚拟定位</title>" in html
-    assert "WiFi 虚拟定位 · v0.4.13" in html
+    assert "WiFi 虚拟定位 · v0.4.14" in html
     assert "v0.4.11" not in html
 
 
@@ -60,14 +60,14 @@ def test_none_os_release_path_uses_default_and_openwrt_fallback(tmp_path, monkey
     monkeypatch.setattr("ios_wifi_loc.platform_label.DEFAULT_OPENWRT_RELEASE", missing)
     assert detect_platform_label(None) == "OpenWrt"
     assert detect_platform_label() == "OpenWrt"
-    assert footer_brand() == "WiFi 虚拟定位 · OpenWrt · v0.4.13"
+    assert footer_brand() == "WiFi 虚拟定位 · OpenWrt · v0.4.14"
 
     os_release.unlink()
     openwrt.write_text("DISTRIB_ID='OpenWrt'\nDISTRIB_RELEASE='24.10.0'\n", encoding="utf-8")
     monkeypatch.setattr("ios_wifi_loc.platform_label.DEFAULT_OS_RELEASE", missing)
     monkeypatch.setattr("ios_wifi_loc.platform_label.DEFAULT_OPENWRT_RELEASE", openwrt)
     assert detect_platform_label(None, system="linux") == "OpenWrt"
-    assert footer_brand() == "WiFi 虚拟定位 · OpenWrt · v0.4.13"
+    assert footer_brand() == "WiFi 虚拟定位 · OpenWrt · v0.4.14"
 
 
 def test_footer_is_full_width_centered_outside_panel():

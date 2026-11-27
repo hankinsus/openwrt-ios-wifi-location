@@ -60,21 +60,132 @@ def _selected_target(data: dict, *, usbmux_address: str | None = None) -> Target
     )
 
 
+def merge_known_devices(existing: list | None, incoming: list | None) -> tuple[list[dict], list[str]]:
+    """Keep previously known devices and update/add any that were just seen.
+
+    Incoming live fields (host, transport, connection, tunnel_ready) overwrite
+    stale ones; a generic later name will not erase a saved friendly name.
+    """
+    merged: dict[str, dict] = {}
+    order: list[str] = []
+    for item in existing or []:
+        if not isinstance(item, dict) or not item.get("udid"):
+            continue
+        udid = str(item["udid"])
+        if udid not in merged:
+            merged[udid] = dict(item)
+            order.append(udid)
+    added: list[str] = []
+    for item in incoming or []:
+        if not isinstance(item, dict) or not item.get("udid"):
+            continue
+        udid = str(item["udid"])
+        if udid not in merged:
+            merged[udid] = dict(item)
+            order.append(udid)
+            added.append(udid)
+            continue
+        current = dict(merged[udid])
+        # Pairing records only fill empty fields; they must not invent or
+        # overwrite a live/selected transport or host.
+        fill_only = str(item.get("source") or "") == "pairing"
+        for key, value in item.items():
+            if value in (None, ""):
+                continue
+            if fill_only and current.get(key) not in (None, ""):
+                continue
+            if key in {"name", "device_name"}:
+                incoming_name = str(value)
+                kept = current.get("name")
+                if is_generic_device_name(incoming_name) and kept and not is_generic_device_name(str(kept)):
+                    continue
+                current["name"] = preferred_device_name(incoming_name, kept) or incoming_name
+                continue
+            current[key] = value
+        merged[udid] = current
+    return [merged[udid] for udid in order], added
+
+
+def remember_known_device(data: dict, item: dict | None) -> bool:
+    if not isinstance(item, dict) or not item.get("udid"):
+        return False
+    merged, _added = merge_known_devices(data.get("discovery") or [], [item])
+    if merged == list(data.get("discovery") or []):
+        return False
+    data["discovery"] = merged
+    return True
+
+
+def backfill_known_devices(data: dict, *, pairing: list | None = None) -> bool:
+    """Ensure selected / session / paired UDIDs stay in the persisted discovery list."""
+    extras: list[dict] = []
+    selected = data.get("selected") if isinstance(data.get("selected"), dict) else {}
+    if selected.get("udid"):
+        extras.append(
+            {
+                "udid": selected["udid"],
+                "transport": selected.get("transport") or "mobdev2",
+                "host": selected.get("host"),
+                "name": selected.get("name"),
+                "product_version": selected.get("product_version"),
+                "connection": selected.get("connection") or "wifi",
+                "source": "selected",
+            }
+        )
+    for udid, session in _sessions_map(data).items():
+        if not isinstance(session, dict):
+            continue
+        extras.append(
+            {
+                "udid": udid,
+                "transport": session.get("transport") or selected.get("transport") or "mobdev2",
+                "host": session.get("host") if "host" in session else selected.get("host"),
+                "name": session.get("name"),
+                "product_version": session.get("product_version"),
+                "connection": session.get("connection") or "wifi",
+                "source": "session",
+            }
+        )
+    for item in pairing or []:
+        if not isinstance(item, dict) or not item.get("udid") or item.get("system_configuration"):
+            continue
+        extras.append(
+            {
+                "udid": item["udid"],
+                "connection": "wifi",
+                "name": item.get("device_name") or item.get("name"),
+                "product_version": item.get("product_version"),
+                "source": "pairing",
+            }
+        )
+    if not extras:
+        return False
+    merged, added = merge_known_devices(data.get("discovery") or [], extras)
+    if merged == list(data.get("discovery") or []):
+        return False
+    data["discovery"] = merged
+    return True
+
+
 def refresh_devices(store: StateStore, binary: str, *, timeout: float) -> Outcome:
     report = discover(binary, timeout=timeout)
     data = store.load()
-    data["discovery"] = report["devices"]
-    remember_device_metadata(data, report["devices"], data.get("selected"))
+    previous = [item for item in (data.get("discovery") or []) if isinstance(item, dict) and item.get("udid")]
+    merged, added = merge_known_devices(previous, report["devices"])
+    data["discovery"] = merged
+    remember_device_metadata(data, merged, data.get("selected"))
     store.save(data)
-    wifi = [item for item in report["devices"] if item["connection"] == "wifi"]
-    usb = [item for item in report["devices"] if item["connection"] == "usb"]
-    return Outcome(
-        True,
-        "LISTED",
-        0,
-        f"Wi-Fi 列表 {len(wifi)} 台，USB 列表 {len(usb)} 台。USB 设备不会被当作 Wi-Fi 目标。空列表只表示这次探测没有看到设备。",
-        report,
-    )
+    wifi = [item for item in report["devices"] if item.get("connection") == "wifi"]
+    usb = [item for item in report["devices"] if item.get("connection") == "usb"]
+    if added:
+        summary = f"新检测到 {len(added)} 台设备，已加入列表。当前共 {len(merged)} 台。本次看到 Wi-Fi {len(wifi)} 台、USB {len(usb)} 台。"
+    else:
+        summary = f"没有发现新设备，已刷新现有列表。当前共 {len(merged)} 台。本次看到 Wi-Fi {len(wifi)} 台、USB {len(usb)} 台。"
+    details = dict(report)
+    details["added"] = added
+    details["added_count"] = len(added)
+    details["known_count"] = len(merged)
+    return Outcome(True, "LISTED", 0, summary, details)
 
 
 def select_device(
@@ -120,6 +231,7 @@ def select_device(
         "connection": connection,
     }
     remember_device_metadata(data, data["selected"], record)
+    remember_known_device(data, data["selected"])
     _sync_legacy_session(data)
     store.save(data)
     return Outcome(True, "SELECTED", 0, "已记录显式选择。这只写入本机状态，不会配对，也不会改定位。切换设备不会停止其它手机上正在保持的模拟。", data["selected"])
@@ -1363,7 +1475,8 @@ def reconnect(
     for attempt in range(1, attempts + 1):
         report = discover(binary, timeout=timeout)
         data = store.load()
-        data["discovery"] = report["devices"]
+        merged, _added = merge_known_devices(data.get("discovery") or [], report["devices"])
+        data["discovery"] = merged
         store.save(data)
         matched = [item for item in report["devices"] if item["connection"] == "wifi" and item["udid"] == udid]
         notes.append(

@@ -16,9 +16,9 @@ def _js_function(html: str, name: str) -> str:
 
 
 def test_version_is_043():
-    assert __version__ == "0.4.13"
+    assert __version__ == "0.4.14"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.13" in html
+    assert "v0.4.14" in html
 
 
 def test_horizontal_device_card_layout():

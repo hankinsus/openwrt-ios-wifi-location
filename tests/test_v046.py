@@ -30,11 +30,11 @@ def _inline_scripts(html: str) -> list[str]:
 
 
 def test_version_is_046():
-    assert __version__ == "0.4.13"
+    assert __version__ == "0.4.14"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.13" in html
+    assert "v0.4.14" in html
     assert "<title>WiFi 虚拟定位</title>" in html
-    assert "WiFi 虚拟定位" in html and "v0.4.13" in html
+    assert "WiFi 虚拟定位" in html and "v0.4.14" in html
     assert "OpenWrt 无线虚拟定位" not in html
     assert "v0.4.5" not in html
 
@@ -96,8 +96,11 @@ def _start_console(tmp_path: Path):
                     UDID_A: {"name": "iPhone17 PRO", "product_version": "27.2.1"},
                     UDID_B: {"name": "iPhone 16", "product_version": "18.6.1"},
                 },
-                "selected": {"udid": UDID_A, "transport": "usbmux"},
-                "discovery": [],
+                "selected": {"udid": UDID_A, "transport": "usbmux", "name": "iPhone17 PRO", "product_version": "27.2.1", "connection": "wifi"},
+                "discovery": [
+                    {"udid": UDID_A, "transport": "usbmux", "name": "iPhone17 PRO", "product_version": "27.2.1", "connection": "wifi"},
+                    {"udid": UDID_B, "transport": "mobdev2", "host": "fe80::2%br-lan", "name": "iPhone 16", "product_version": "18.6.1", "connection": "wifi"},
+                ],
             },
             ensure_ascii=False,
         ),
@@ -328,15 +331,17 @@ def _run_viewport(browser, url: str, name: str, width: int, height: int) -> list
     # Shared, non-destructive checks on every viewport.
     try:
         page.wait_for_function(
-            "() => document.getElementById('device-select') && document.getElementById('device-select').options.length >= 3",
+            "() => document.querySelectorAll('#device-select-list [data-udid]').length >= 2",
             timeout=10000,
         )
-        page.select_option("#device-select", UDID_B)
+        page.click("#device-select-btn")
+        page.click(f'#device-select-list [data-udid="{UDID_B}"]')
         page.wait_for_function(
             "() => (document.getElementById('device-info-title') || {}).textContent.includes('iPhone 16')",
             timeout=8000,
         )
-        page.select_option("#device-select", UDID_A)
+        page.click("#device-select-btn")
+        page.click(f'#device-select-list [data-udid="{UDID_A}"]')
         page.wait_for_function(
             "() => (document.getElementById('device-info-title') || {}).textContent.includes('iPhone17 PRO')",
             timeout=8000,

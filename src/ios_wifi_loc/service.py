@@ -26,10 +26,12 @@ from ios_wifi_loc.pairing import (
 )
 from ios_wifi_loc.session import (
     apply_device_metadata,
+    backfill_known_devices,
     clear_location,
     list_enabled_desired_targets,
     reconnect,
     refresh_devices,
+    remember_device_metadata,
     resume_desired_targets,
     restore_desired_loop,
     reap_stray_holders,
@@ -294,6 +296,11 @@ class Console:
         data = dict(current.details)
         data["summary"] = current.summary
         state = self.store.load()
+        pairing_report = enrich_pairing(list_pairing(self.store.directory, runtime_dir=runtime_lockdown_dir()), state)
+        if backfill_known_devices(state, pairing=pairing_report.get("files")):
+            remember_device_metadata(state, state.get("discovery"), state.get("selected"))
+            self.store.save(state)
+            state = self.store.load()
         names = state.get("device_names") or {}
         selected = data.get("selected") if isinstance(data.get("selected"), dict) else {}
         devices = _devices_with_sessions(
@@ -316,7 +323,7 @@ class Console:
             data["selected"]["tunnel_connected"] = connected
             data["selected"]["tunnel_ready"] = connected
         data["desired_targets"] = data.get("desired_targets") or list_enabled_desired_targets(state)
-        data["pairing"] = enrich_pairing(list_pairing(self.store.directory, runtime_dir=runtime_lockdown_dir()), state)
+        data["pairing"] = pairing_report
         data["device_names"] = names
         data["settings"] = {"shortcuts": shortcut_settings(state)}
         data["require_auth"] = self.require_auth
@@ -429,6 +436,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"summary": "Host 不被接受"})
             return
         path, query = self._split_path()
+        if path in {"/favicon.ico", "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"}:
+            self._send(204, b"", "image/x-icon")
+            return
         if path == "/":
             cookies = _cookies(self.headers.get("Cookie"))
             csrf = cookies.get("csrf") or secrets.token_hex(16)
@@ -521,8 +531,19 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {"summary": "已退出"}, {"Set-Cookie": "session=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict"})
                 return
             if path == "/api/discover":
-                refresh_devices(self.console.store, self.console.binary, timeout=self.console.timeout)
-                self._json(200, self.console.payload())
+                outcome = refresh_devices(self.console.store, self.console.binary, timeout=self.console.timeout)
+                details = outcome.details or {}
+                self._json(
+                    200,
+                    self.console.payload(
+                        {
+                            "summary": outcome.summary,
+                            "added": list(details.get("added") or []),
+                            "added_count": int(details.get("added_count") or 0),
+                            "known_count": int(details.get("known_count") or 0),
+                        }
+                    ),
+                )
                 return
             if path == "/api/select":
                 outcome = select_device(

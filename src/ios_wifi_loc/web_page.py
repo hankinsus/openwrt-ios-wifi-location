@@ -9,6 +9,7 @@ PAGE = r"""<!DOCTYPE html>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="csrf-token" content="__CSRF__">
 <title>__PAGE_TITLE__</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%23007aff'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <style>
 :root { --blue:#007aff; --green:#34c759; --red:#ff3b30; --gray:#8e8e93; --bg:#f2f2f7; --text:#1c1c1e; }
@@ -100,7 +101,21 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .toast.toast-ok { background:rgba(52,199,89,.95); color:#fff; }
 .toast.toast-bad { background:rgba(255,59,48,.95); color:#fff; }
 .device-bar-wrap { padding-bottom:8px; margin-bottom:0; }
-.device-select { font-size:16px; padding:12px 14px; margin-top:0; font-weight:500; background:#fff; }
+.device-select { font-size:16px; padding:0; margin-top:10px; font-weight:500; background:transparent; width:100%; }
+.menu-select { position:relative; width:100%; }
+.menu-select-toggle { position:relative; width:100%; min-height:44px; text-align:left; font-size:16px; font-weight:500; padding:12px 36px 12px 14px; border:1px solid #d1d1d6; border-radius:8px; background:#fff; color:var(--text); cursor:pointer; appearance:none; -webkit-appearance:none; }
+.menu-select-toggle:after { content:""; position:absolute; right:14px; top:50%; width:8px; height:8px; margin-top:-6px; border-right:2px solid #6e6e73; border-bottom:2px solid #6e6e73; transform:rotate(45deg); pointer-events:none; }
+.menu-select-list { position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:30; background:#fff; color:var(--text); border:1px solid #d1d1d6; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.12); max-height:240px; overflow-y:auto; padding:4px; }
+.menu-option { display:block; width:100%; min-height:44px; text-align:left; border:none; background:transparent; border-radius:8px; padding:10px 12px; font-size:15px; color:var(--text); cursor:pointer; }
+.menu-option:hover, .menu-option:focus { background:#f2f2f7; }
+.menu-option.is-selected { background:#e8f1ff; font-weight:600; }
+.segmented { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.segment { flex:1 1 calc(33.33% - 6px); min-height:44px; border:1px solid #d1d1d6; background:#fff; color:var(--text); border-radius:10px; font-size:13px; padding:8px 10px; cursor:pointer; }
+.segment.is-active { background:var(--blue); color:#fff; border-color:var(--blue); font-weight:600; }
+.device-info-meta { display:flex; flex-direction:column; gap:4px; font-size:12px; color:#3a3a3c; min-width:0; }
+.device-info-row { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; line-height:1.45; overflow-wrap:anywhere; word-break:break-all; min-width:0; }
+.device-info-label { color:var(--gray); font-family:-apple-system,system-ui,sans-serif; font-size:11px; margin-right:6px; }
+.device-info-transport { font-family:-apple-system,system-ui,sans-serif; }
 .device-status { margin-top:8px; font-size:13px; line-height:1.5; min-height:1.5em; }
 .device-status .badge { margin-right:6px; }
 .pair-steps { display:flex; flex-direction:column; gap:10px; margin:10px 0; }
@@ -113,7 +128,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .device-info { margin-top:10px; background:#e8f1ff; border:1px solid var(--blue); border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; align-items:stretch; gap:6px; min-width:0; }
 .device-info-head { display:flex; justify-content:space-between; align-items:center; gap:8px; min-width:0; }
 .device-info-title { flex:1; min-width:0; font-size:15px; font-weight:600; line-height:1.35; overflow-wrap:anywhere; word-break:break-word; }
-.device-info-meta { font-size:11px; color:#3a3a3c; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; overflow-wrap:anywhere; word-break:break-all; }
+
 .device-info .device-status { margin-top:0; min-height:0; width:100%; }
 .device-info .device-status .badge { margin-right:0; display:inline-block; white-space:normal; overflow-wrap:anywhere; word-break:break-word; max-width:100%; line-height:1.35; }
 .badge-pick { background:var(--blue); color:#fff; flex-shrink:0; }
@@ -175,26 +190,34 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
     <div class="card" style="margin-bottom:0">
       <div class="fav-header">
         <h3 style="margin-bottom:0">选择设备</h3>
-        <button class="btn btn-sm btn-secondary" id="discover" type="button">重新扫描</button>
+        <button class="btn btn-sm btn-secondary" id="discover" type="button">添加设备检测</button>
       </div>
-      <select id="device-select" class="field device-select" aria-label="选择设备"></select>
+      <div class="menu-select device-select" id="device-select">
+        <button type="button" class="menu-select-toggle" id="device-select-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="选择设备">请选择一台 iPhone</button>
+        <div class="menu-select-list" id="device-select-list" hidden role="listbox"></div>
+      </div>
       <div id="device-info" class="device-info" hidden>
         <div class="device-info-head">
           <div class="device-info-title" id="device-info-title"></div>
           <span class="badge badge-disconnected" id="device-info-picked" hidden>未连接</span>
         </div>
-        <div class="device-info-meta" id="device-info-udid"></div>
+        <div class="device-info-meta" id="device-info-meta">
+          <div class="device-info-row device-info-transport" id="device-info-transport"></div>
+          <div class="device-info-row" id="device-info-udid"></div>
+          <div class="device-info-row" id="device-info-host"></div>
+        </div>
         <div id="device-status" class="device-status"></div>
       </div>
       <details id="manual-device">
         <summary>高级 / 手动添加</summary>
         <p class="notice" style="text-align:left;margin:8px 0 0 0">传输类型、主机和标识仅在设备未被自动发现时需要手动填写。</p>
         <label>传输
-          <select id="transport" class="field">
-            <option value="mobdev2">mobdev2（无线）</option>
-            <option value="usbmux">usbmux 网络</option>
-            <option value="remotepairing">remotepairing</option>
-          </select>
+          <div class="segmented" id="transport-pills" role="radiogroup" aria-label="传输">
+            <button type="button" class="segment is-active" data-value="mobdev2" aria-pressed="true">mobdev2（无线）</button>
+            <button type="button" class="segment" data-value="usbmux" aria-pressed="false">usbmux 网络</button>
+            <button type="button" class="segment" data-value="remotepairing" aria-pressed="false">remotepairing</button>
+          </div>
+          <input type="hidden" id="transport" value="mobdev2">
         </label>
         <label>标识 <input id="udid" class="field" type="text" autocomplete="off"></label>
         <label>主机（可选，支持 IPv6 如 fe80::1%br-lan） <input id="host" class="field" type="text" autocomplete="off"></label>
@@ -413,31 +436,87 @@ function deviceStatusText(item, tunneldReady) {
   if (item.tunnel_ready) return "隧道就绪";
   return tunneldReady ? "等待连接" : "等待隧道";
 }
+function closeDeviceMenu() {
+  const list = $("device-select-list");
+  const btn = $("device-select-btn");
+  if (list) list.hidden = true;
+  if (btn) btn.setAttribute("aria-expanded", "false");
+}
+function toggleDeviceMenu() {
+  const list = $("device-select-list");
+  const btn = $("device-select-btn");
+  if (!list || !btn) return;
+  const open = list.hidden;
+  list.hidden = !open;
+  btn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+function setDeviceMenuLabel(text) {
+  const btn = $("device-select-btn");
+  if (btn) btn.textContent = text;
+}
+function setTransport(value) {
+  const field = $("transport");
+  const next = value || "mobdev2";
+  if (field) field.value = next;
+  document.querySelectorAll("#transport-pills .segment").forEach((btn) => {
+    const on = btn.dataset.value === next;
+    btn.classList.toggle("is-active", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+function fillMetaRow(id, label, value) {
+  const row = $(id);
+  if (!row) return;
+  if (!value) {
+    row.hidden = true;
+    row.textContent = "";
+    return;
+  }
+  row.hidden = false;
+  row.replaceChildren();
+  const tag = document.createElement("span");
+  tag.className = "device-info-label";
+  tag.textContent = label;
+  row.appendChild(tag);
+  row.appendChild(document.createTextNode(value));
+}
 function paintDeviceSelect(data) {
-  const sel = $("device-select");
-  if (!sel) return;
+  const wrap = $("device-select");
+  const list = $("device-select-list");
+  if (!wrap || !list) return;
   const devices = data.devices || [];
   const selectedId = (data.selected && data.selected.udid) || "";
   const ready = !!(data.tunneld && data.tunneld.reachable);
-  sel.replaceChildren();
+  const wasOpen = !list.hidden;
+  wrap.dataset.value = selectedId;
+  list.replaceChildren();
   if (!devices.length) {
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = "未发现设备，请先导入配对文件或重新扫描";
-    sel.appendChild(opt);
+    const empty = document.createElement("div");
+    empty.className = "menu-option";
+    empty.setAttribute("role", "option");
+    empty.textContent = "未发现设备，请先导入配对文件或点击「添加设备检测」";
+    list.appendChild(empty);
+    setDeviceMenuLabel("未发现设备，请点击「添加设备检测」");
   } else {
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = "请选择一台 iPhone";
-    sel.appendChild(placeholder);
     devices.forEach((item) => {
-      const opt = document.createElement("option");
-      opt.value = item.udid;
+      const opt = document.createElement("button");
+      opt.type = "button";
+      opt.className = "menu-option" + (item.udid === selectedId ? " is-selected" : "");
+      opt.setAttribute("role", "option");
+      opt.dataset.udid = item.udid;
+      opt.setAttribute("aria-selected", item.udid === selectedId ? "true" : "false");
       opt.textContent = deviceTitle(item);
-      sel.appendChild(opt);
+      opt.onclick = () => {
+        closeDeviceMenu();
+        if (item.udid === selectedId) return;
+        chooseDevice(item);
+      };
+      list.appendChild(opt);
     });
+    const currentLabel = devices.find((d) => d.udid === selectedId);
+    setDeviceMenuLabel(currentLabel ? deviceTitle(currentLabel) : "请选择一台 iPhone");
   }
-  sel.value = selectedId;
+  if (!wasOpen) list.hidden = true;
   const current = devices.find((d) => d.udid === selectedId);
   const info = $("device-info");
   const box = $("device-status");
@@ -446,11 +525,10 @@ function paintDeviceSelect(data) {
   if (current) {
     if (info) info.hidden = false;
     if ($("device-info-title")) $("device-info-title").textContent = deviceCardTitle(current);
-    const bits = [];
-    if (current.transport || current.connection) bits.push(current.transport || current.connection);
-    bits.push(current.udid);
-    if (current.host) bits.push(current.host);
-    if ($("device-info-udid")) $("device-info-udid").textContent = bits.join(" ");
+    const transportLabel = current.transport || current.connection || "";
+    fillMetaRow("device-info-transport", "传输", transportLabel);
+    fillMetaRow("device-info-udid", "UDID", current.udid || "");
+    fillMetaRow("device-info-host", "IP", current.host || "");
     if (picked) {
       const connected = !!(current.tunnel_connected || current.tunnel_ready);
       picked.hidden = false;
@@ -469,7 +547,9 @@ function paintDeviceSelect(data) {
   } else {
     if (info) info.hidden = !devices.length;
     if ($("device-info-title")) $("device-info-title").textContent = devices.length ? "请选择一台 iPhone" : "未发现设备";
-    if ($("device-info-udid")) $("device-info-udid").textContent = "";
+    fillMetaRow("device-info-transport", "传输", "");
+    fillMetaRow("device-info-udid", "UDID", "");
+    fillMetaRow("device-info-host", "IP", "");
     if (picked) picked.hidden = true;
     if (box && devices.length) box.textContent = "切换上方列表即可立即选中";
   }
@@ -601,7 +681,7 @@ function paint(data) {
   const ready = !!(data && data.tunneld && data.tunneld.reachable);
   paintDeviceSelect(data);
   if (data.selected && data.selected.udid) $("udid").value = data.selected.udid;
-  if (data.selected && data.selected.transport) $("transport").value = data.selected.transport;
+  if (data.selected && data.selected.transport) setTransport(data.selected.transport);
   if (data.selected && data.selected.host) $("host").value = data.selected.host;
   const list = $("favs");
   list.replaceChildren();
@@ -701,9 +781,13 @@ async function refresh() { paint(await api("/api/status")); }
 async function scan() {
   $("action-error").textContent = "";
   try {
-    await withBusy($("discover"), "扫描中...", async () => {
-      paint(await api("/api/discover", {method:"POST", body:"{}"}));
-      toast("扫描完成", 2500, "ok");
+    await withBusy($("discover"), "检测中...", async () => {
+      const data = await api("/api/discover", {method:"POST", body:"{}"});
+      paint(data);
+      const added = Number(data.added_count || 0);
+      const known = Number(data.known_count || (data.devices || []).length);
+      if (added > 0) toast("新检测到 " + added + " 台设备，已加入列表。当前共 " + known + " 台。", 3500, "ok");
+      else toast(data.summary || "没有发现新设备，已刷新现有列表。", 3500, "ok");
     });
   } catch (error) { $("action-error").textContent = error.message; toast(error.message, 3500, "bad"); }
 }
@@ -844,7 +928,6 @@ function showApp() {
 async function afterLogin() {
   showApp();
   try { await refresh(); } catch (e) {}
-  try { await scan(); } catch (e) {}
 }
 
 CITIES.forEach((city) => {
@@ -992,12 +1075,20 @@ $("plist-files").onchange = async (e) => {
 ["dragleave","drop"].forEach((name) => $("drop").addEventListener(name, (e) => { e.preventDefault(); $("drop").classList.remove("drag"); }));
 $("drop").addEventListener("drop", (e) => readPlistFiles(e.dataTransfer.files));
 $("import-plist").onclick = () => $("plist-files").click();
-$("device-select").onchange = () => {
-  const udid = $("device-select").value;
-  if (!udid) return;
-  const item = (lastPayload.devices || []).find((d) => d.udid === udid);
-  if (item) chooseDevice(item);
+$("device-select-btn").onclick = (event) => {
+  event.stopPropagation();
+  toggleDeviceMenu();
 };
+document.addEventListener("pointerdown", (event) => {
+  const wrap = $("device-select");
+  if (wrap && !wrap.contains(event.target)) closeDeviceMenu();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeDeviceMenu();
+});
+document.querySelectorAll("#transport-pills .segment").forEach((btn) => {
+  btn.onclick = () => setTransport(btn.dataset.value);
+});
 document.querySelectorAll("[data-copy-target]").forEach((btn) => {
   btn.onclick = async () => {
     const target = $(btn.getAttribute("data-copy-target"));

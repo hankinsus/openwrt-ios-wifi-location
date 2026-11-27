@@ -8,7 +8,7 @@ from ios_wifi_loc.web_page import render_page
 
 
 def test_version_is_current():
-    assert __version__ == "0.4.13"
+    assert __version__ == "0.4.14"
 
 
 def test_web_page_device_dropdown_pairing_guide_and_button_feedback():
@@ -25,7 +25,9 @@ def test_web_page_device_dropdown_pairing_guide_and_button_feedback():
     assert "scale(0.97)" in html
     assert "设置中..." in html
     assert "恢复中..." in html
-    assert "扫描中..." in html
+    assert "检测中..." in html
+    assert "添加设备检测" in html
+    assert "重新扫描" not in html
     assert "✅ 已下发定位" in html
     assert "✅ 已恢复真实定位" in html
     assert "window.isSecureContext" in html
@@ -35,7 +37,7 @@ def test_web_page_device_dropdown_pairing_guide_and_button_feedback():
     assert "Only secure origins are allowed" not in html
     assert "保持中（自动重连已开启，已重连 " in html
     assert "等待隧道恢复自动重连…" in html
-    assert "v0.4.13" in html
+    assert "v0.4.14" in html
     assert "navigator.geolocation.getCurrentPosition" in html
 
 
