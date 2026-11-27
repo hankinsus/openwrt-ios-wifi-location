@@ -295,7 +295,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
     </div>
 
     <div class="footer-card">
-      <div class="footer-brand">OpenWrt 无线虚拟定位 · v0.4.9</div>
+      <div class="footer-brand">OpenWrt 无线虚拟定位 · v0.4.10</div>
     </div>
     <p id="action-error" class="bad"></p>
     <p class="notice" id="logout-wrap" hidden><button class="btn btn-sm btn-secondary" id="logout" type="button">退出</button></p>

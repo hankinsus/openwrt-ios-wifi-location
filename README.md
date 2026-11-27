@@ -1,4 +1,4 @@
-# ios-wifi-loc 0.4.9
+# ios-wifi-loc 0.4.10
 
 在 R4S 或其它 OpenWrt / Debian / Ubuntu 机器上，**一条命令**完成下载、补齐环境和安装。升级同一条命令即可，会保留已有口令和配对文件：
 
@@ -75,6 +75,8 @@ v0.4.4 把两个已验证可用的 iOS 快捷指令做成网页一键安装按�
 配对列表的删除按钮与「我的收藏」统一为圆形浅底红 ×。网页「配对管理」默认只显示已导入列表和醒目的「下载 Windows 一键配对工具」按钮：双击运行即可自动检测/安装 Python（兼容 `python` / `py`，跳过 WindowsApps 空壳占位符；没有时用 `winget` 安装 Python 3.12 并刷新 PATH），开启开发者模式、配对并打开 Wi-Fi，再按当前网页地址把最新的 `<UDID>.plist` 和 `SystemConfiguration.plist` 自动上传到本机 `/api/pairing/import`。手动 PowerShell 步骤和拖拽上传收在默认折叠的「展开手动配置与手动上传」里，作为兜底。设备下拉框和选中卡片都会显示完整的手机名称与 iOS 版本（例如 `iPhone17 PRO (iOS 27.2.1)`），发现结果只有泛泛的「iPhone」时会回填已保存或配对记录里的名称，避免把友好名称冲掉。页面同时适配手机、iPad 和电脑宽度：窄屏竖排不溢出，长 UDID / IPv6 会换行，按钮更好点。
 
 v0.4.5 修复了配对管理卡片下方漏出残缺 HTML 文本的问题。电脑端把主容器收窄到 720px 居中，地图与卡片对齐，手机和 iPad 仍自适应、不溢出。选中设备蓝框改为三行：第一行左侧是设备名与 iOS 版本（例如 `iPhone17 PRO · iOS 27.2.1`），右侧同一行是蓝色「已选择」徽章；第二行是 UDID 与隧道信息；第三行是绿色状态胶囊，单独占一行。折叠面板里的手动配置改回简短的几行命令；完整的自动检测/安装 Python、开启开发者模式、配对开 Wi-Fi、并按网页地址自动上传两个 `.plist` 的能力，仍然保留在 Windows 一键配对工具（`.bat`）里。同时去掉「当前模拟状态」卡片和页脚长说明，页脚只保留 `OpenWrt 无线虚拟定位 · v0.4.5`。
+
+v0.4.10 修复健康会话被 `restore_desired_loop` 每约 8 秒杀掉重建、界面反复闪「等待隧道恢复自动重连…」的问题。iOS 17+ 正常运行时一台设备有 2 个进程：`_hold` 看门狗和 `_simulate`（或 `simulate-location set`）子进程；`pids_matching(..., holders=True)` 会同时匹配这两类，长度为 2。v0.4.9 的 `resume_desired_targets` 用 `extras <= 1` 判断「已在保持」，健康的一对进程永远过不了，于是每轮恢复循环都 `set_location(replace=True)`。现在按 `_hold` 和模拟子进程分别计数：1 个看门狗且至多 1 个子进程视为 `already_holding`，只有重复 `_hold` / 重复子进程，或没有看门狗的孤儿模拟进程才会重拉。清理残留时仍会一次收齐全部三类进程。
 
 v0.4.9 修复网页或快捷指令点「一键恢复真实定位」后，旧 `_hold` / `simulate-location` 被停掉、却立刻被 `restore_desired_loop` 再拉起一对新进程、手机仍停在虚拟定位的问题。根因是 `clear_location` 先停 holder、再（且仅在上游 `clear` 成功后）删除 `desired_targets`，期间又不持有与恢复循环共用的 `hold_spawn_lock`；慢的 `simulate-location clear` 会留下「已期望坐标、但未在保持」的窗口，恢复循环按原坐标 `set_location(replace=True)`。另外一旦把 `desired_targets` 直接 pop 掉，`backfill_desired_targets` 还能从会话里残留的经纬度把目标重建成 `enabled: True`。现在 `clear` 与恢复循环共用同一把可重入的 per-UDID 锁：先写入 `enabled: False` 的墓碑并清掉会话坐标，再停进程、跑上游 `clear`；即便上游失败也不再自动恢复。`resume_desired_targets` / `set_location(..., only_if_desired=True)` 在锁内再次确认目标仍启用，避免并发把 `_hold` 复活。正常「设置定位」写入的 `desired_targets` 以及升级后的自动恢复不受影响。
 

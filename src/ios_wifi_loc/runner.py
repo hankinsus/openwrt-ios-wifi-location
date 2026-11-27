@@ -258,11 +258,71 @@ def list_process_table() -> list[tuple[int, str]]:
     return rows
 
 
-def is_holder_command(text: str) -> bool:
+def is_watchdog_command(text: str) -> bool:
+    """True for the per-UDID `_hold` watchdog process."""
+    return "_hold" in (text or "").split()
+
+
+def is_simulate_command(text: str) -> bool:
+    """True for `_simulate` or `pymobiledevice3 ... simulate-location set` children."""
     tokens = (text or "").split()
-    if "_hold" in tokens or "_simulate" in tokens:
+    if "_simulate" in tokens:
         return True
-    return "simulate-location" in text and "set" in tokens
+    return "simulate-location" in (text or "") and "set" in tokens
+
+
+def is_holder_command(text: str) -> bool:
+    """True for any location-holding process (watchdog or simulate child).
+
+    Kept broad so reap_stray_holders / clear_location / replace=True still
+    collect every leftover `_hold`, `_simulate`, and `simulate-location set`.
+    """
+    return is_watchdog_command(text) or is_simulate_command(text)
+
+
+@dataclass
+class HolderProcessCounts:
+    watchdog: list[int]
+    simulate: list[int]
+
+    @property
+    def watchdog_count(self) -> int:
+        return len(self.watchdog)
+
+    @property
+    def simulate_count(self) -> int:
+        return len(self.simulate)
+
+    def is_healthy_family(self) -> bool:
+        """A single `_hold` and at most one simulate child: not a duplicate or orphan."""
+        return self.watchdog_count == 1 and self.simulate_count <= 1
+
+
+def holder_process_counts(*, udid: str | None = None, state_dir: Path | str | None = None) -> HolderProcessCounts:
+    """Classify leftover holder PIDs for one UDID (or state dir) into watchdog vs simulate."""
+    me = os.getpid()
+    needle_udid = str(udid) if udid else ""
+    needle_state = str(state_dir) if state_dir is not None else ""
+    watchdog: list[int] = []
+    simulate: list[int] = []
+    seen: set[int] = set()
+    for pid, text in list_process_table():
+        if pid in {me, 0, 1} or pid in seen:
+            continue
+        if needle_udid and needle_udid not in text:
+            if not needle_state or needle_state not in text:
+                continue
+        if needle_state and needle_state not in text and (not needle_udid or needle_udid not in text):
+            continue
+        if needle_udid and needle_udid not in text:
+            continue
+        if is_watchdog_command(text):
+            watchdog.append(pid)
+            seen.add(pid)
+        elif is_simulate_command(text):
+            simulate.append(pid)
+            seen.add(pid)
+    return HolderProcessCounts(watchdog, simulate)
 
 
 def is_tunneld_command(text: str) -> bool:

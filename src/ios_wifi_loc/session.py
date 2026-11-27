@@ -14,6 +14,7 @@ from ios_wifi_loc.discovery import command_failed, discover
 from ios_wifi_loc.identifiers import IdentifierError, validate_name, validate_udid
 from ios_wifi_loc.runner import (
     holder_matches,
+    holder_process_counts,
     interrupt_holder,
     pid_alive,
     pids_matching,
@@ -536,14 +537,19 @@ def resume_desired_targets(
             session = _session_for(data, udid) or {}
             pid = session.get("pid")
             is_holding = False
-            extras = len(pids_matching(udid=udid, holders=True))
+            counts = holder_process_counts(udid=udid)
             if holding is not None:
                 is_holding = bool(holding(item, session))
             elif isinstance(pid, int) and pid > 1:
                 is_holding = holder_matches(pid)
             else:
-                is_holding = extras == 1
-            if is_holding and extras <= 1:
+                is_holding = counts.watchdog_count == 1
+            # A healthy iOS 17+ session is `_hold` + `_simulate` (or
+            # `simulate-location set`): pids_matching(..., holders=True)
+            # returns 2, which must not be treated as a duplicate.
+            duplicate = counts.watchdog_count > 1 or counts.simulate_count > 1
+            orphan_simulate = counts.watchdog_count == 0 and counts.simulate_count >= 1
+            if counts.is_healthy_family() or (is_holding and not duplicate and not orphan_simulate):
                 results.append({"udid": udid, "action": "already_holding", "ok": True, "lat": item["lat"], "lon": item["lon"]})
                 continue
             with hold_spawn_lock(store, udid):

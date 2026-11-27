@@ -51,10 +51,10 @@ def _wait_dead(pids: list[int], timeout: float = 3) -> bool:
 
 
 def test_version_is_047():
-    assert __version__ == "0.4.9"
+    assert __version__ == "0.4.10"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.9" in html
-    assert "OpenWrt 无线虚拟定位 · v0.4.9" in html
+    assert "v0.4.10" in html
+    assert "OpenWrt 无线虚拟定位 · v0.4.10" in html
     assert "v0.4.6" not in html
 
 
