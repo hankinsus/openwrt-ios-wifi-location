@@ -51,11 +51,11 @@ def _wait_dead(pids: list[int], timeout: float = 3) -> bool:
 
 
 def test_version_is_047():
-    assert __version__ == "0.4.11"
+    assert __version__ == "0.4.12"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.11" in html
+    assert "v0.4.12" in html
     assert "<title>WiFi 虚拟定位</title>" in html
-    assert "WiFi 虚拟定位" in html and "v0.4.11" in html
+    assert "WiFi 虚拟定位" in html and "v0.4.12" in html
     assert "OpenWrt 无线虚拟定位" not in html
     assert "v0.4.6" not in html
 
@@ -70,7 +70,8 @@ def test_ui_footer_and_layer_bar_source():
     assert "left:auto; right:12px;" in html
     assert "max-width:calc(100% - 56px)" in html
     assert "flex-wrap:wrap" in html
-    assert "margin:28px auto 0 auto" in html
+    assert "margin:36px 0 24px" in html
+    assert ".footer-card { width:100%; max-width:none;" in html
     assert "background:transparent" in html
     assert 'data-layer="satellite"' in html
     assert "卫星" in html and "WGS84" in html and "高德" in html

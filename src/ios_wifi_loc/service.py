@@ -42,7 +42,7 @@ from ios_wifi_loc.shortcut import ShortcutError, format_shortcut_status, shortcu
 from ios_wifi_loc.sharelinks import ShareLinkError
 from ios_wifi_loc.state import StateStore
 from ios_wifi_loc.web_page import render_page
-from ios_wifi_loc.windows_pair import ToolError, render_windows_pair_bat, server_base_from_host
+from ios_wifi_loc.windows_pair import ToolError, encode_windows_pair_bat, render_windows_pair_bat, server_base_from_host
 
 DEFAULT_PORT = 19443
 
@@ -755,7 +755,7 @@ class Handler(BaseHTTPRequestHandler):
         except ToolError as exc:
             self._json(400, {"summary": str(exc)})
             return
-        body = b"\xef\xbb\xbf" + script.encode("utf-8")
+        body = encode_windows_pair_bat(script)
         self._send(
             200,
             body,

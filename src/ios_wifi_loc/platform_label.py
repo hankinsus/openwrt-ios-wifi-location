@@ -13,6 +13,7 @@ KNOWN_IDS = {
 }
 
 DEFAULT_OS_RELEASE = Path("/etc/os-release")
+DEFAULT_OPENWRT_RELEASE = Path("/etc/openwrt_release")
 
 
 def _unquote(value: str) -> str:
@@ -40,30 +41,41 @@ def _name_short(name: str) -> str:
     return token.strip(".,;:()[]{}")
 
 
+def _label_from_release_file(path: Path) -> str:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    fields = parse_os_release(text)
+    ident = (fields.get("ID") or fields.get("DISTRIB_ID") or "").strip().lower()
+    if ident in KNOWN_IDS:
+        return KNOWN_IDS[ident]
+    short = _name_short(fields.get("NAME") or fields.get("DISTRIB_ID") or fields.get("DISTRIB_DESCRIPTION") or "")
+    return short
+
+
 def detect_platform_label(
-    os_release_path: str | Path | None = DEFAULT_OS_RELEASE,
+    os_release_path: str | Path | None = None,
     *,
     system: str | None = None,
+    openwrt_release_path: str | Path | None = None,
 ) -> str:
     """Return a short host label such as OpenWrt / Ubuntu, or '' if unknown.
 
-    `os_release_path` defaults to `/etc/os-release` and can be injected in tests.
-    `system` defaults to `sys.platform` and is used for macOS when no os-release file exists.
+    `os_release_path=None` means `/etc/os-release` (DEFAULT_OS_RELEASE), looked up
+    at call time so footer_brand() default args still read the real file.
+    Pass an explicit path to inject a fixture; use a missing path to skip the file.
+    If os-release is missing or empty, fall back to `/etc/openwrt_release`.
+    `system` defaults to `sys.platform` and is used for macOS when no release file exists.
     """
-    path = Path(os_release_path) if os_release_path is not None else None
-    if path is not None:
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            text = ""
-        else:
-            fields = parse_os_release(text)
-            ident = (fields.get("ID") or "").strip().lower()
-            if ident in KNOWN_IDS:
-                return KNOWN_IDS[ident]
-            short = _name_short(fields.get("NAME") or "")
-            if short:
-                return short
+    os_path = Path(os_release_path) if os_release_path is not None else DEFAULT_OS_RELEASE
+    label = _label_from_release_file(os_path)
+    if label:
+        return label
+    ow_path = Path(openwrt_release_path) if openwrt_release_path is not None else DEFAULT_OPENWRT_RELEASE
+    label = _label_from_release_file(ow_path)
+    if label:
+        return label
     host = (system if system is not None else sys.platform).strip().lower()
     if host in {"darwin", "macos", "osx"}:
         return "macOS"

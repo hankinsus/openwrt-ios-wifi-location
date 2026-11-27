@@ -31,7 +31,7 @@ ALLOWED_HOST_SUFFIXES = (
 
 _URL = re.compile(r"https?://[^\s<>\"']+", re.I)
 _PAIR = re.compile(r"(-?\d{1,3}\.\d+)\s*[,，\s]\s*(-?\d{1,3}\.\d+)")
-USER_AGENT = "ios-wifi-loc/0.4.11 (+lan-shortcut)"
+USER_AGENT = "ios-wifi-loc/0.4.12 (+lan-shortcut)"
 MAX_BODY = 64 * 1024
 DEFAULT_TIMEOUT = 3.0
 MAX_REDIRECTS = 5

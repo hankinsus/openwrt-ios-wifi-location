@@ -30,11 +30,11 @@ def _inline_scripts(html: str) -> list[str]:
 
 
 def test_version_is_046():
-    assert __version__ == "0.4.11"
+    assert __version__ == "0.4.12"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.11" in html
+    assert "v0.4.12" in html
     assert "<title>WiFi 虚拟定位</title>" in html
-    assert "WiFi 虚拟定位" in html and "v0.4.11" in html
+    assert "WiFi 虚拟定位" in html and "v0.4.12" in html
     assert "OpenWrt 无线虚拟定位" not in html
     assert "v0.4.5" not in html
 
@@ -49,7 +49,8 @@ def test_map_is_full_bleed_and_cards_stay_narrow():
     assert "overflow:visible" in html
     assert "left:auto; right:12px;" in html
     assert "max-width:calc(100% - 56px)" in html
-    assert "margin:28px auto 0 auto" in html
+    assert "margin:36px 0 24px" in html
+    assert ".footer-card { width:100%; max-width:none;" in html
     assert "#map { height:420px;" in html
     assert "@media (max-width:1024px)" in html
     assert "@media (max-width:600px)" in html

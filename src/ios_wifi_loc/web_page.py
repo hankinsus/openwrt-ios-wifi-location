@@ -74,8 +74,8 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .modal { background:#fff; border-radius:16px; padding:20px; width:100%; max-width:340px; }
 .modal h3 { font-size:17px; font-weight:600; margin-bottom:16px; text-align:center; }
 .modal input { width:100%; padding:12px; border:1px solid #d1d1d6; border-radius:10px; font-size:15px; outline:none; margin-bottom:12px; }
-.footer-card { text-align:center; padding:4px 16px 8px; background:transparent; border-radius:0; box-shadow:none; margin:28px auto 0 auto; max-width:720px; }
-.footer-brand { font-weight:600; font-size:15px; color:var(--text); margin-bottom:0; }
+.footer-card { width:100%; max-width:none; margin:36px 0 24px; padding:8px 16px; text-align:center; background:transparent; border-radius:0; box-shadow:none; }
+.footer-brand { font-weight:600; font-size:15px; color:var(--text); margin-bottom:0; text-align:center; width:100%; }
 .footer-version { font-size:12px; color:var(--gray); margin-bottom:8px; font-family:ui-monospace,Menlo,monospace; font-weight:700; }
 .bad { color:var(--red); font-size:13px; margin-top:8px; }
 #action-error { margin:8px 0 0 0; }
@@ -257,7 +257,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
       <div class="row" style="margin-top:12px">
         <a class="btn btn-primary" id="download-windows-pair" href="/api/tools/windows-pair.bat">下载 Windows 一键配对工具 (.bat)</a>
       </div>
-      <p class="notice" style="text-align:left;margin:8px 0 0 0">双击运行即可自动检测/安装 Python、开启开发者模式、配对开启 Wi-Fi，并按当前网页地址自动上传 2 个 <code>.plist</code> 文件。</p>
+      <p class="notice" style="text-align:left;margin:8px 0 0 0">双击运行即可自动检测/安装 Python、开启开发者模式、配对开启 Wi-Fi，并按当前网页地址自动上传 Lockdown 目录里的全部 <code>.plist</code> 文件。</p>
       <p class="notice" id="pair-auth-note" style="text-align:left;margin:8px 0 0 0">若服务开了口令，下载工具后请先设置环境变量 <code>IOS_WIFI_LOC_TOKEN</code> 为状态目录 <code>web.secret</code> 中的口令，再运行脚本。</p>
       <details class="pair-manual">
         <summary>展开手动配置与手动上传 (.plist)</summary>
@@ -293,12 +293,11 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
         </div>
       </details>
     </div>
-
-    <div class="footer-card">
-      <div class="footer-brand">__FOOTER_BRAND__</div>
-    </div>
     <p id="action-error" class="bad"></p>
     <p class="notice" id="logout-wrap" hidden><button class="btn btn-sm btn-secondary" id="logout" type="button">退出</button></p>
+  </div>
+  <div class="footer-card">
+    <div class="footer-brand">__FOOTER_BRAND__</div>
   </div>
 </div>
 <div class="toast" id="toast"></div>

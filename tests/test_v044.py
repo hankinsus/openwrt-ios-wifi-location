@@ -18,9 +18,9 @@ CLEAR_URL = "https://www.icloud.com/shortcuts/395385a36be94384a85480d7459d1fa1"
 
 
 def test_version_is_044():
-    assert __version__ == "0.4.11"
+    assert __version__ == "0.4.12"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.11" in html
+    assert "v0.4.12" in html
     assert "v0.4.3" not in html
 
 
@@ -137,7 +137,6 @@ def test_windows_pair_detects_and_installs_python():
     assert "SystemConfiguration.plist" in html and "SystemConfiguration.plist" in script
     assert "Invoke-RestMethod" in script
     assert "content_base64" in script
-    assert "LastWriteTime" in script
     # After a successful winget install the bat continues instead of forcing a rerun.
     install_idx = script.index("winget install -e --id Python.Python.3.12")
     continue_idx = script.index("Refresh-Path", install_idx)
@@ -152,7 +151,7 @@ def test_pairing_card_promotes_windows_tool_and_folds_manual_steps():
     assert 'class="btn btn-primary" id="download-windows-pair"' in html
     assert "下载 Windows 一键配对工具 (.bat)" in html
     assert "双击运行即可自动检测/安装 Python" in html
-    assert "自动上传 2 个" in html
+    assert "自动上传 Lockdown 目录里的全部" in html
     assert "展开手动配置与手动上传 (.plist)" in html
     assert '<details class="pair-manual">' in html
     assert '<details class="pair-manual" open' not in html

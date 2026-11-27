@@ -1,4 +1,4 @@
-# ios-wifi-loc 0.4.11
+# ios-wifi-loc 0.4.12
 
 在 R4S 或其它 OpenWrt / Debian / Ubuntu 机器上，**一条命令**完成下载、补齐环境和安装。升级同一条命令即可，会保留已有口令和配对文件：
 
@@ -75,6 +75,8 @@ v0.4.4 把两个已验证可用的 iOS 快捷指令做成网页一键安装按�
 配对列表的删除按钮与「我的收藏」统一为圆形浅底红 ×。网页「配对管理」默认只显示已导入列表和醒目的「下载 Windows 一键配对工具」按钮：双击运行即可自动检测/安装 Python（兼容 `python` / `py`，跳过 WindowsApps 空壳占位符；没有时用 `winget` 安装 Python 3.12 并刷新 PATH），开启开发者模式、配对并打开 Wi-Fi，再按当前网页地址把最新的 `<UDID>.plist` 和 `SystemConfiguration.plist` 自动上传到本机 `/api/pairing/import`。手动 PowerShell 步骤和拖拽上传收在默认折叠的「展开手动配置与手动上传」里，作为兜底。设备下拉框和选中卡片都会显示完整的手机名称与 iOS 版本（例如 `iPhone17 PRO (iOS 27.2.1)`），发现结果只有泛泛的「iPhone」时会回填已保存或配对记录里的名称，避免把友好名称冲掉。页面同时适配手机、iPad 和电脑宽度：窄屏竖排不溢出，长 UDID / IPv6 会换行，按钮更好点。
 
 v0.4.5 修复了配对管理卡片下方漏出残缺 HTML 文本的问题。电脑端把主容器收窄到 720px 居中，地图与卡片对齐，手机和 iPad 仍自适应、不溢出。选中设备蓝框改为三行：第一行左侧是设备名与 iOS 版本（例如 `iPhone17 PRO · iOS 27.2.1`），右侧同一行是蓝色「已选择」徽章；第二行是 UDID 与隧道信息；第三行是绿色状态胶囊，单独占一行。折叠面板里的手动配置改回简短的几行命令；完整的自动检测/安装 Python、开启开发者模式、配对开 Wi-Fi、并按网页地址自动上传两个 `.plist` 的能力，仍然保留在 Windows 一键配对工具（`.bat`）里。同时去掉「当前模拟状态」卡片和页脚长说明，页脚只保留 `OpenWrt 无线虚拟定位 · v0.4.5`。
+
+v0.4.12 修复中文 Windows 下一键配对 `.bat` 因 UTF-8 多字节字符加 `^` 续行被 cmd.exe 拆碎、根本没有跑到 PowerShell / `lockdown pair` 的问题：改成短 ASCII 头读取自身 UTF-8 内容，在 `___PS1___` 标记之后 `iex` 真正的脚本，并用 CRLF 与 UTF-8 BOM 下发；同时上传 Lockdown 目录里全部 `.plist`，方便再配对第二台手机。另外修复 v0.4.11 页脚把 `os_release_path=None` 当成跳过 `/etc/os-release`、R4S 上不显示 OpenWrt 的问题，并在缺少 os-release 时回退读取 `/etc/openwrt_release`；页脚改为相对整页水平居中。
 
 v0.4.11 把网页标题和底部品牌从写死的「OpenWrt 无线虚拟定位」改成通用的「WiFi 虚拟定位」，并按 `/etc/os-release` 自动显示宿主机系统（如 `WiFi 虚拟定位 · OpenWrt · v0.4.11` 或 `WiFi 虚拟定位 · Ubuntu · v0.4.11`）；识别不到系统时只显示 `WiFi 虚拟定位 · v0.4.11`。文档和安装脚本里真正描述 OpenWrt 的说明保持不变。
 

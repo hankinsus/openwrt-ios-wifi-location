@@ -21,11 +21,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_version_is_048():
-    assert __version__ == "0.4.11"
+    assert __version__ == "0.4.12"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.11" in html
+    assert "v0.4.12" in html
     assert "<title>WiFi 虚拟定位</title>" in html
-    assert "WiFi 虚拟定位" in html and "v0.4.11" in html
+    assert "WiFi 虚拟定位" in html and "v0.4.12" in html
     assert "OpenWrt 无线虚拟定位" not in html
     assert "v0.4.7" not in html
 
