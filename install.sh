@@ -97,7 +97,7 @@ download_archive() {
     esac
 
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL -- "$url" -o "$dest"
+        curl -fsSL -o "$dest" -- "$url"
     elif command -v wget >/dev/null 2>&1; then
         wget -qO "$dest" -- "$url"
     elif command -v uclient-fetch >/dev/null 2>&1; then
