@@ -9,6 +9,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
 
 from ios_wifi_loc.coords import CoordError
 from ios_wifi_loc.doctor import _ipv4_ioctl
@@ -30,8 +31,11 @@ from ios_wifi_loc.session import (
     set_location,
     status,
 )
+from ios_wifi_loc.shortcut import ShortcutError, format_shortcut_status, shortcut_clear, shortcut_set
+from ios_wifi_loc.sharelinks import ShareLinkError
 from ios_wifi_loc.state import StateStore
 from ios_wifi_loc.web_page import render_page
+from ios_wifi_loc.windows_pair import ToolError, render_windows_pair_bat, server_base_from_host
 
 DEFAULT_PORT = 47321
 
@@ -95,6 +99,49 @@ def _devices_with_sessions(devices: list, sessions: list) -> list[dict]:
         item.update(_session_ui_fields(sess))
         result.append(item)
     return result
+
+
+def enrich_pairing(report: dict, data: dict) -> dict:
+    names = dict(data.get("device_names") or {})
+    for item in data.get("discovery") or []:
+        if not isinstance(item, dict) or not item.get("udid"):
+            continue
+        entry = dict(names.get(item["udid"]) or {})
+        if item.get("name"):
+            entry["name"] = item["name"]
+        if item.get("product_version"):
+            entry["product_version"] = item["product_version"]
+        if entry:
+            names[item["udid"]] = entry
+    selected = data.get("selected") or {}
+    if isinstance(selected, dict) and selected.get("udid"):
+        entry = dict(names.get(selected["udid"]) or {})
+        if selected.get("name"):
+            entry["name"] = selected["name"]
+        if selected.get("product_version"):
+            entry["product_version"] = selected["product_version"]
+        if entry:
+            names[selected["udid"]] = entry
+    files = []
+    for item in report.get("files") or []:
+        row = dict(item)
+        if row.get("system_configuration"):
+            row["device_name"] = None
+            row["product_version"] = None
+            row["display_name"] = "系统配对配置"
+            row["label"] = "系统配对配置"
+        else:
+            meta = names.get(row.get("udid") or "") or {}
+            row["device_name"] = meta.get("name")
+            row["product_version"] = meta.get("product_version")
+            title = meta.get("name") or "未命名设备"
+            version = (" iOS " + str(meta["product_version"])) if meta.get("product_version") else ""
+            row["display_name"] = (title + version).strip()
+            row["label"] = row["display_name"]
+        files.append(row)
+    enriched = dict(report)
+    enriched["files"] = files
+    return enriched
 
 
 class ServiceError(ValueError):
@@ -188,8 +235,10 @@ class Console:
         current = status(self.store)
         data = dict(current.details)
         data["summary"] = current.summary
-        data["devices"] = _devices_with_sessions(self.store.load().get("discovery") or [], data.get("sessions") or [])
-        data["pairing"] = list_pairing(self.store.directory, runtime_dir=runtime_lockdown_dir())
+        state = self.store.load()
+        data["devices"] = _devices_with_sessions(state.get("discovery") or [], data.get("sessions") or [])
+        data["pairing"] = enrich_pairing(list_pairing(self.store.directory, runtime_dir=runtime_lockdown_dir()), state)
+        data["device_names"] = state.get("device_names") or {}
         data["require_auth"] = self.require_auth
         if extra:
             data.update(extra)
@@ -255,6 +304,27 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return True
 
+    def _split_path(self) -> tuple[str, dict[str, str]]:
+        parsed = urlparse(self.path)
+        query = {key: values[-1] if values else "" for key, values in parse_qs(parsed.query, keep_blank_values=True).items()}
+        return parsed.path, query
+
+    def _token_from(self, query: dict[str, str] | None = None) -> str:
+        header = (self.headers.get("X-API-Token") or self.headers.get("Authorization") or "").strip()
+        if header.lower().startswith("bearer "):
+            header = header[7:].strip()
+        return str((query or {}).get("token") or header or "").strip()
+
+    def _api_authorized(self, query: dict[str, str] | None = None) -> bool:
+        if not self.console.require_auth:
+            return True
+        if self._session_ok():
+            return True
+        token = self._token_from(query)
+        if not token:
+            return False
+        return secrets.compare_digest(token, self.console.secret)
+
     def _csrf_required(self) -> bool:
         return self.console.require_auth
 
@@ -278,22 +348,35 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             self._json(400, {"summary": "Host 不被接受"})
             return
-        if self.path == "/":
+        path, query = self._split_path()
+        if path == "/":
             cookies = _cookies(self.headers.get("Cookie"))
             csrf = cookies.get("csrf") or secrets.token_hex(16)
             page = render_page(csrf, no_auth=not self.console.require_auth).encode("utf-8")
             self._send(200, page, "text/html; charset=utf-8", {"Set-Cookie": f"csrf={csrf}; Path=/; SameSite=Strict"})
             return
+        if path in {"/api/tools/windows-pair.bat", "/api/tools/windows-pair.ps1"}:
+            if not self._api_authorized(query):
+                self._json(401, {"summary": "需要先输入本机口令或在 URL 里加上 token"})
+                return
+            self._windows_pair_tool()
+            return
+        if path.startswith("/api/shortcut/"):
+            if not self._api_authorized(query):
+                self._json(401, {"summary": "需要先输入本机口令或在 URL 里加上 token"})
+                return
+            self._handle_shortcut(path, query, {})
+            return
         if not self._session_ok():
             self._json(401, {"summary": "需要先输入本机口令"})
             return
-        if self.path == "/api/status":
+        if path == "/api/status":
             self._json(200, self.console.payload())
             return
-        if self.path == "/api/guide":
+        if path == "/api/guide":
             self._json(200, {"text": pair_guide()})
             return
-        if self.path == "/api/pairing":
+        if path == "/api/pairing":
             self._json(200, self.console.payload())
             return
         self._json(404, {"summary": "没有这个页面"})
@@ -316,58 +399,76 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def do_POST(self) -> None:  # noqa: N802
-        if not self._post_guarded():
+        path, query = self._split_path()
+        open_api = path.startswith("/api/shortcut/") or path == "/api/pairing/import"
+        if open_api:
+            if not self._host_ok():
+                self._json(400, {"summary": "Host 不被接受"})
+                return
+            if not self._api_authorized(query):
+                self._json(401, {"summary": "需要先输入本机口令或在 URL 里加上 token"})
+                return
+        elif not self._post_guarded():
             self._json(403, {"summary": "请求来源没有通过校验"})
             return
         if not self.console.rates.allow("post:" + self._client(), 60, 60):
             self._json(429, {"summary": "请求过于频繁"})
             return
         try:
-            max_length = 400 * 1024 if self.path == "/api/pairing/import" else 16384
-            body = self._read_json(max_length=max_length)
-            if self.path == "/api/login":
+            max_length = 400 * 1024 if path == "/api/pairing/import" else 16384
+            if (self.headers.get("Content-Type") or "").startswith("application/x-www-form-urlencoded"):
+                length = int(self.headers.get("Content-Length") or "0")
+                raw = self.rfile.read(length) if length else b""
+                form = {k: v[-1] if v else "" for k, v in parse_qs(raw.decode("utf-8"), keep_blank_values=True).items()}
+                body = form
+            else:
+                body = self._read_json(max_length=max_length)
+            if path.startswith("/api/shortcut/"):
+                self._handle_shortcut(path, query, body)
+                return
+            if path == "/api/login":
                 self._login(body)
                 return
-            if not self._session_ok():
+            if not open_api and not self._session_ok():
                 self._json(401, {"summary": "需要先输入本机口令"})
                 return
-            if self.path == "/api/logout":
+            if path == "/api/logout":
                 cookies = _cookies(self.headers.get("Cookie"))
                 self.console.sessions.pop(cookies.get("session", ""), None)
                 self._json(200, {"summary": "已退出"}, {"Set-Cookie": "session=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict"})
                 return
-            if self.path == "/api/discover":
+            if path == "/api/discover":
                 refresh_devices(self.console.store, self.console.binary, timeout=self.console.timeout)
                 self._json(200, self.console.payload())
                 return
-            if self.path == "/api/select":
+            if path == "/api/select":
                 outcome = select_device(
                     self.console.store,
                     udid=str(body.get("udid") or ""),
                     transport=body.get("transport"),
                     host=body.get("host") or None,
-                    name=None,
+                    name=(str(body["name"]) if body.get("name") else None),
                     allow_usb=False,
                     usbmux_address=None,
                 )
                 self._json(200 if outcome.ok else 400, self.console.payload({"summary": outcome.summary}))
                 return
-            if self.path == "/api/favorites":
+            if path == "/api/favorites":
                 self._add_favorite(body)
                 return
-            if self.path in {"/api/location/start", "/api/set"}:
+            if path in {"/api/location/start", "/api/set"}:
                 self._start(body)
                 return
-            if self.path in {"/api/location/clear", "/api/clear"}:
+            if path in {"/api/location/clear", "/api/clear"}:
                 self._clear(body)
                 return
-            if self.path == "/api/favorites/delete":
+            if path == "/api/favorites/delete":
                 self._delete_favorite(body)
                 return
-            if self.path == "/api/pairing/import":
+            if path == "/api/pairing/import":
                 self._import_pairing(body)
                 return
-            if self.path == "/api/connection/check":
+            if path == "/api/connection/check":
                 outcome = reconnect(
                     self.console.store,
                     self.console.binary,
@@ -422,6 +523,7 @@ class Handler(BaseHTTPRequestHandler):
     def _start(self, body: dict) -> None:
         if body.get("confirm") is not True:
             raise ServiceError("启动定位需要确认。服务不会在重启后自动重放坐标。")
+        replace = True if body.get("replace") is None else bool(body.get("replace"))
         outcome = set_location(
             self.console.store,
             self.console.binary,
@@ -433,6 +535,7 @@ class Handler(BaseHTTPRequestHandler):
             foreground=False,
             allow_usb=False,
             allow_legacy=False,
+            replace=replace,
         )
         self.console.log(outcome.summary)
         self._json(200 if outcome.ok else 400, self.console.payload({"summary": outcome.summary}))
@@ -492,6 +595,70 @@ class Handler(BaseHTTPRequestHandler):
         self.console.log("已导入配对文件 " + ", ".join(imported))
         self._json(200, self.console.payload({"summary": "已导入 " + "、".join(imported), "imported": imported}))
 
+    def _shortcut_reply(self, payload: dict, query: dict[str, str]) -> None:
+        ok = bool(payload.get("ok", True))
+        code = 200 if ok else 400
+        fmt = (query.get("format") or "").lower()
+        accept = (self.headers.get("Accept") or "").lower()
+        if fmt in {"text", "plain", "txt"} or (fmt != "json" and accept.startswith("text/plain")):
+            text = str(payload.get("text") or payload.get("summary") or "")
+            self._send(code, (text + "\n").encode("utf-8"), "text/plain; charset=utf-8")
+            return
+        self._json(code, payload)
+
+    def _handle_shortcut(self, path: str, query: dict[str, str], body: dict) -> None:
+        params = dict(query)
+        if isinstance(body, dict):
+            for key, value in body.items():
+                if value is not None and value != "":
+                    params[key] = value
+        try:
+            if path == "/api/shortcut/set":
+                payload = shortcut_set(
+                    self.console.store,
+                    self.console.binary,
+                    params,
+                    timeout=self.console.timeout,
+                    grace=self.console.grace,
+                )
+                self.console.log(payload.get("summary") or "")
+                self._shortcut_reply(payload, query)
+                return
+            if path == "/api/shortcut/clear":
+                payload = shortcut_clear(
+                    self.console.store,
+                    self.console.binary,
+                    params,
+                    timeout=self.console.timeout,
+                )
+                self.console.log(payload.get("summary") or "")
+                self._shortcut_reply(payload, query)
+                return
+            if path == "/api/shortcut/status":
+                payload = format_shortcut_status(self.console.store, udid=params.get("udid"))
+                self._shortcut_reply(payload, query)
+                return
+        except (ShortcutError, ShareLinkError, CoordError, IdentifierError, PairingError) as exc:
+            self._shortcut_reply({"ok": False, "code": "SHORTCUT_FAILED", "summary": str(exc), "text": str(exc)}, query)
+            return
+        self._json(404, {"summary": "没有这个快捷指令接口"})
+
+    def _windows_pair_tool(self) -> None:
+        host = self.headers.get("Host") or ""
+        try:
+            base = server_base_from_host(host, scheme="http")
+            script = render_windows_pair_bat(base)
+        except ToolError as exc:
+            self._json(400, {"summary": str(exc)})
+            return
+        body = b"\xef\xbb\xbf" + script.encode("utf-8")
+        self._send(
+            200,
+            body,
+            "application/octet-stream; charset=utf-8",
+            {"Content-Disposition": 'attachment; filename="ios-wifi-loc-windows-pair.bat"'},
+        )
+
     def do_DELETE(self) -> None:  # noqa: N802
         if not self._post_guarded():
             self._json(403, {"summary": "请求来源没有通过校验"})
@@ -499,12 +666,12 @@ class Handler(BaseHTTPRequestHandler):
         if not self._session_ok():
             self._json(401, {"summary": "需要先输入本机口令"})
             return
+        path, _query = self._split_path()
         prefix = "/api/pairing/"
-        if not self.path.startswith(prefix) or self.path == "/api/pairing/import":
+        if not path.startswith(prefix) or path == "/api/pairing/import":
             self._json(404, {"summary": "没有这个操作"})
             return
-        from urllib.parse import unquote
-        name = unquote(self.path[len(prefix):])
+        name = unquote(path[len(prefix):])
         try:
             report = delete_plist(self.console.store.directory, name, runtime_dir=runtime_lockdown_dir())
         except PairingError as exc:

@@ -5,19 +5,20 @@ set -eu
 
 usage() {
     cat <<'EOF'
-用法：sh scripts/oneclick-install.sh [--interface br-lan] [--dry-run] [--root 路径] [--state-dir 路径] [--prefix 路径]
+用法：sh scripts/oneclick-install.sh [--interface br-lan] [--dry-run] [--upgrade] [--root 路径] [--state-dir 路径] [--prefix 路径]
 
-识别 OpenWrt（/etc/openwrt_release，opkg 或 OpenWrt 24.10+ 的 apk）或 Debian/Ubuntu（apt-get）。
-补齐 Python 3.9+、pip、usbmuxd，优先创建 venv。没有 venv 模块时改把依赖装进隔离目录，不写入系统 site-packages。
-然后安装本工具和 pymobiledevice3，运行 preflight，并写入 procd 或 systemd。
+自动识别 OpenWrt（/etc/openwrt_release，opkg 或 apk，procd）、Debian/Ubuntu/Armbian 等（apt-get，systemd）、Alpine Linux（apk，OpenRC）。
+补齐 Python 3.9+、pip、usbmuxd 和局域网发现（avahi），优先创建 venv。没有 venv 模块时改把依赖装进隔离目录，不写入系统 site-packages。
+然后安装本工具和 pymobiledevice3，运行 preflight，并写入 procd、systemd 或 OpenRC。
 不修改路由、防火墙或 PassWall，不监听 0.0.0.0。口令文件权限是 0600，输出只给路径。
 编译依赖只在上游不能直接装上时才补。
-OpenWrt 上默认把状态和配对文件放在 /etc/ios-wifi-loc（可写闪存），并自动拉起 tunneld。局域网页面默认免密，请勿把 47321 端口暴露到公网。升级时会保留已有口令和收藏。
+OpenWrt 上默认把状态和配对文件放在 /etc/ios-wifi-loc（可写闪存），Debian/Alpine 默认 /var/lib/ios-wifi-loc。局域网页面默认免密，请勿把 47321 端口暴露到公网。再次运行或加 --upgrade 会保留已有口令、收藏和配对文件并重启服务。
 EOF
 }
 
 src=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 DRY=0
+UPGRADE=0
 INTERFACE=
 ROOT=
 STATE=
@@ -26,6 +27,7 @@ PREFIX=
 while [ $# -gt 0 ]; do
     case "$1" in
         --dry-run) DRY=1; shift ;;
+        --upgrade) UPGRADE=1; shift ;;
         --interface)
             [ $# -ge 2 ] || { echo "缺少 --interface 的网卡名" >&2; exit 2; }
             INTERFACE=$2
@@ -95,15 +97,22 @@ if [ -f "$ROOT/etc/openwrt_release" ]; then
         echo "识别为 OpenWrt，但找不到 opkg 或 apk。" >&2
         exit 1
     fi
+elif [ -f "$ROOT/etc/alpine-release" ]; then
+    KIND=alpine
+    PM=apk
+    if [ "$ROOT" = "/" ] && ! command -v apk >/dev/null 2>&1; then
+        echo "识别为 Alpine Linux，但找不到 apk。" >&2
+        exit 1
+    fi
 elif [ -f "$ROOT/etc/debian_version" ] || { [ -f "$ROOT/etc/os-release" ] && grep -Eq '^(ID|ID_LIKE)=.*(debian|ubuntu)' "$ROOT/etc/os-release"; }; then
     KIND=debian
     PM=apt-get
-    if ! command -v apt-get >/dev/null 2>&1; then
+    if [ "$ROOT" = "/" ] && ! command -v apt-get >/dev/null 2>&1; then
         echo "识别为 Debian/Ubuntu，但找不到 apt-get。" >&2
         exit 1
     fi
 else
-    echo "只自动安装 OpenWrt（opkg 或 apk）和 Debian/Ubuntu（apt-get）。当前根目录不是这两种系统。" >&2
+    echo "只自动安装 OpenWrt（opkg/apk）、Debian/Ubuntu（apt-get）和 Alpine Linux（apk）。当前根目录不是这几种系统。" >&2
     exit 1
 fi
 
@@ -124,8 +133,11 @@ fi
 BASE_PKGS="python3 python3-pip usbmuxd"
 BUILD_PKGS="gcc python3-dev libopenssl-dev libffi-dev libimobiledevice"
 if [ "$KIND" = debian ]; then
-    BASE_PKGS="python3 python3-pip python3-venv usbmuxd"
+    BASE_PKGS="python3 python3-pip python3-venv usbmuxd avahi-daemon"
     BUILD_PKGS="build-essential python3-dev libssl-dev libffi-dev libimobiledevice-utils"
+elif [ "$KIND" = alpine ]; then
+    BASE_PKGS="python3 py3-pip py3-virtualenv usbmuxd avahi dbus"
+    BUILD_PKGS="build-base python3-dev openssl-dev libffi-dev libimobiledevice"
 fi
 
 echo "系统：$KIND，包管理器：$PM"
@@ -142,6 +154,9 @@ else
     echo "服务只监听 127.0.0.1。局域网请加 --interface br-lan。"
 fi
 echo "不会修改路由、防火墙或 PassWall。"
+if [ "$UPGRADE" -eq 1 ]; then
+    echo "这是升级安装，会保留已有口令、收藏和配对文件，并在写入启动脚本后重启服务。"
+fi
 
 if [ -r /proc/meminfo ]; then
     mem_total=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
@@ -367,11 +382,19 @@ echo "口令文件：$secret_path（默认免密，不需要输入；文件权�
 echo "口令内容没有打印。请勿把 47321 端口暴露到公网。"
 
 if [ "$ROOT" = "/" ]; then
-    if [ -x /etc/init.d/ios-wifi-loc ]; then
+    if [ -f /etc/openwrt_release ] && [ -x /etc/init.d/ios-wifi-loc ]; then
         /etc/init.d/ios-wifi-loc enable || echo "没有启用 procd 服务。"
-        /etc/init.d/ios-wifi-loc start || echo "没有启动 procd 服务。"
-    elif command -v systemctl >/dev/null 2>&1; then
+        /etc/init.d/ios-wifi-loc restart 2>/dev/null || /etc/init.d/ios-wifi-loc start || echo "没有启动 procd 服务。"
+    elif command -v systemctl >/dev/null 2>&1 && [ -f /etc/systemd/system/ios-wifi-loc.service ]; then
         systemctl daemon-reload || true
-        systemctl enable --now ios-wifi-loc || echo "没有启用 systemd 服务。"
+        systemctl enable ios-wifi-loc-tunneld.service ios-wifi-loc.service || echo "没有启用 systemd 服务。"
+        systemctl restart ios-wifi-loc-tunneld.service ios-wifi-loc.service 2>/dev/null || systemctl start ios-wifi-loc-tunneld.service ios-wifi-loc.service || echo "没有启动 systemd 服务。"
+    elif command -v rc-update >/dev/null 2>&1 && [ -x /etc/init.d/ios-wifi-loc ]; then
+        rc-update add ios-wifi-loc-tunneld default 2>/dev/null || true
+        rc-update add ios-wifi-loc default 2>/dev/null || true
+        if [ -x /etc/init.d/ios-wifi-loc-tunneld ]; then
+            /etc/init.d/ios-wifi-loc-tunneld restart 2>/dev/null || /etc/init.d/ios-wifi-loc-tunneld start || true
+        fi
+        /etc/init.d/ios-wifi-loc restart 2>/dev/null || /etc/init.d/ios-wifi-loc start || echo "没有启动 OpenRC 服务。"
     fi
 fi

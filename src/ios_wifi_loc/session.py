@@ -53,6 +53,7 @@ def refresh_devices(store: StateStore, binary: str, *, timeout: float) -> Outcom
     report = discover(binary, timeout=timeout)
     data = store.load()
     data["discovery"] = report["devices"]
+    remember_device_metadata(data, report["devices"], data.get("selected"))
     store.save(data)
     wifi = [item for item in report["devices"] if item["connection"] == "wifi"]
     usb = [item for item in report["devices"] if item["connection"] == "usb"]
@@ -96,14 +97,18 @@ def select_device(
     except (PlanError, IdentifierError) as exc:
         return _fail("VALIDATION", 2, str(exc))
     connection = "usb" if record and record.get("connection") == "usb" else "wifi"
+    record_name = (record or {}).get("name") if record else None
+    record_version = (record or {}).get("product_version") if record else None
     data["selected"] = {
         "udid": target.udid,
         "transport": target.transport,
         "host": target.host,
         "usbmux_address": target.usbmux_address,
-        "name": display,
+        "name": display or record_name,
+        "product_version": record_version,
         "connection": connection,
     }
+    remember_device_metadata(data, data["selected"], record)
     _sync_legacy_session(data)
     store.save(data)
     return Outcome(True, "SELECTED", 0, "已记录显式选择。这只写入本机状态，不会配对，也不会改定位。切换设备不会停止其它手机上正在保持的模拟。", data["selected"])
@@ -213,6 +218,39 @@ def _sync_legacy_session(data: dict) -> None:
     data["session"] = sessions.get(udid) if udid else data.get("session")
 
 
+def _device_names_map(data: dict) -> dict:
+    names = data.get("device_names")
+    if not isinstance(names, dict):
+        names = {}
+        data["device_names"] = names
+    return names
+
+
+def remember_device_metadata(data: dict, *sources: object) -> dict:
+    names = _device_names_map(data)
+    for source in sources:
+        items = source
+        if isinstance(source, dict) and "udid" in source:
+            items = [source]
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict) or not item.get("udid"):
+                continue
+            udid = item["udid"]
+            entry = dict(names.get(udid) or {})
+            name = item.get("name") or item.get("device_name")
+            version = item.get("product_version")
+            if name:
+                entry["name"] = name
+            if version:
+                entry["product_version"] = version
+            if entry:
+                names[udid] = entry
+    data["device_names"] = names
+    return names
+
+
 def _release_stale_holder(store: StateStore, data: dict) -> dict:
     sessions = _sessions_map(data)
     changed = False
@@ -282,6 +320,7 @@ def _apply_location(
     allow_usb: bool,
     allow_legacy: bool,
     usbmux_address: str | None = None,
+    replace: bool = False,
 ) -> Outcome:
     try:
         lat, lon = parse_pair(latitude, longitude)
@@ -302,7 +341,11 @@ def _apply_location(
         return _fail("VALIDATION", 2, str(exc))
     session = _session_for(data, target.udid) or {}
     if session.get("pid") and holder_matches(int(session["pid"])):
-        return _fail("DUPLICATE_SESSION", 4, "该设备已有定位会话进程。先清除它，再发送新坐标。不会启动第二个会话。其它手机的模拟不受影响。")
+        if not replace:
+            return _fail("DUPLICATE_SESSION", 4, "该设备已有定位会话进程。先清除它，再发送新坐标。不会启动第二个会话。其它手机的模拟不受影响。")
+        stop_holder_for_udid(store, target.udid, timeout=min(timeout, 5))
+        data = store.load()
+        data = _release_stale_holder(store, data)
     resolved = profile
     if profile == "auto":
         resolved, probe = _probe_kind(binary, target, timeout)
@@ -447,6 +490,7 @@ def set_location(
     allow_usb: bool,
     allow_legacy: bool,
     usbmux_address: str | None = None,
+    replace: bool = False,
 ) -> Outcome:
     return _remember(
         store,
@@ -462,6 +506,7 @@ def set_location(
             allow_usb=allow_usb,
             allow_legacy=allow_legacy,
             usbmux_address=usbmux_address,
+            replace=replace,
         ),
     )
 
@@ -494,27 +539,10 @@ def _wait_foreground(store: StateStore, binary: str, proc, timeout: float, allow
     return Outcome(confirmed, cleanup.code if confirmed else "CLEANUP_UNCONFIRMED", 0 if confirmed else 6, summary, {"holder": holder, "clear": cleanup.details})
 
 
-def _clear_location(
-    store: StateStore,
-    binary: str,
-    *,
-    timeout: float,
-    allow_usb: bool,
-    profile: str | None = None,
-) -> Outcome:
+def stop_holder_for_udid(store: StateStore, udid: str | None, *, timeout: float) -> dict:
     data = store.load()
-    blocked = _guard_selected(data, allow_usb=allow_usb)
-    if blocked:
-        return blocked
-    try:
-        target_early = _selected_target(data)
-        udid = target_early.udid
-    except (PlanError, IdentifierError):
-        udid = (data.get("selected") or {}).get("udid")
-        target_early = None
-    data = _release_stale_holder(store, data)
     session = _session_for(data, udid) if udid else (data.get("session") or None)
-    holder = None
+    holder = {"signaled": False, "exited": True, "reason": "not_running"}
     if udid:
         from ios_wifi_loc.watchdog import request_stop
 
@@ -537,15 +565,43 @@ def _clear_location(
                     os.kill(extra, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
-        if holder.get("exited") and udid:
-            session = dict(session)
-            session["pid"] = None
-            session["child_pid"] = None
-            session["holding"] = False
-            session["watchdog_active"] = False
-            session["waiting_reconnect"] = False
-            _put_session(data, udid, session)
-            store.save(data)
+        if udid:
+            current = _session_for(data, udid)
+            if current:
+                current = dict(current)
+                current["pid"] = None
+                current["child_pid"] = None
+                current["holding"] = False
+                current["watchdog_active"] = False
+                current["waiting_reconnect"] = False
+                _put_session(data, udid, current)
+                store.save(data)
+    return holder
+
+
+def _clear_location(
+    store: StateStore,
+    binary: str,
+    *,
+    timeout: float,
+    allow_usb: bool,
+    profile: str | None = None,
+) -> Outcome:
+    data = store.load()
+    blocked = _guard_selected(data, allow_usb=allow_usb)
+    if blocked:
+        return blocked
+    try:
+        target_early = _selected_target(data)
+        udid = target_early.udid
+    except (PlanError, IdentifierError):
+        udid = (data.get("selected") or {}).get("udid")
+        target_early = None
+    data = _release_stale_holder(store, data)
+    session = _session_for(data, udid) if udid else (data.get("session") or None)
+    holder = stop_holder_for_udid(store, udid, timeout=timeout)
+    data = store.load()
+    session = _session_for(data, udid) if udid else (data.get("session") or None)
     chosen = profile or (session or {}).get("profile")
     if chosen not in {"pre17", "ios17"}:
         return _fail(

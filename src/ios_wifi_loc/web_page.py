@@ -183,6 +183,56 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
     </div>
 
     <div class="card">
+      <h3>iOS 快捷指令 &amp; 地图分享</h3>
+      <p class="notice" style="text-align:left;margin:0 0 10px 0">三种方式设置定位，都走本机路由，不经过外部定位服务：</p>
+      <div class="pair-steps">
+        <div class="pair-step">
+          <div class="pair-step-h"><span class="step-no">1</span><span>在本页地图选点、搜索或点城市预设，再点「设置定位」。</span></div>
+        </div>
+        <div class="pair-step">
+          <div class="pair-step-h"><span class="step-no">2</span><span>用 iOS「快捷指令」一键设置或恢复定位（下面给出可复制的接口地址）。</span></div>
+        </div>
+        <div class="pair-step">
+          <div class="pair-step-h"><span class="step-no">3</span><span>在「高德地图 / 苹果地图 / Google 地图 / 百度地图」里点分享，把链接交给快捷指令，本机自动解析并改定位。</span></div>
+        </div>
+      </div>
+      <div class="active-loc">
+        <div class="label">设置定位接口</div>
+        <div class="value" id="shortcut-set-url">正在生成…</div>
+        <div class="row"><button type="button" class="btn btn-sm btn-secondary" id="copy-shortcut-set">复制</button></div>
+      </div>
+      <div class="active-loc">
+        <div class="label">恢复真实定位接口</div>
+        <div class="value" id="shortcut-clear-url">正在生成…</div>
+        <div class="row"><button type="button" class="btn btn-sm btn-secondary" id="copy-shortcut-clear">复制</button></div>
+      </div>
+      <div class="active-loc">
+        <div class="label">查看状态接口</div>
+        <div class="value" id="shortcut-status-url">正在生成…</div>
+        <div class="row"><button type="button" class="btn btn-sm btn-secondary" id="copy-shortcut-status">复制</button></div>
+      </div>
+      <div class="section-title">常用地点一键链接</div>
+      <div id="shortcut-presets" class="pair-cmds" style="user-select:all"></div>
+      <details open>
+        <summary>在 iPhone 上创建快捷指令（推荐，兼容 iOS 17+）</summary>
+        <div class="pair-steps">
+          <div class="pair-step">
+            <div class="pair-step-h"><span class="step-no">1</span><span>打开「快捷指令」，新建快捷指令，打开「在分享表单中显示」，类型勾选「网址」和「文本」。</span></div>
+          </div>
+          <div class="pair-step">
+            <div class="pair-step-h"><span class="step-no">2</span><span>添加「获取 URL 内容」。URL 用「URL」动作拼接：接口地址 + 经过「URL 编码」的「快捷指令输入」。设置定位用下面这个地址（把分享来的地图链接接到 <code>text=</code> 后面）：</span></div>
+            <pre class="pair-cmds" id="shortcut-guide-set">正在生成…</pre>
+            <div class="row"><button type="button" class="btn btn-sm btn-secondary" id="copy-shortcut-guide">复制接口地址</button></div>
+          </div>
+          <div class="pair-step">
+            <div class="pair-step-h"><span class="step-no">3</span><span>再添加「显示通知」，内容用「获取 URL 内容」的返回文本。另建一个「恢复真实定位」快捷指令，URL 只用恢复接口，不必附加分享内容。Apple 从 iOS 15 起要求已签名的 <code>.shortcut</code> 文件才能直接导入，因此本页不提供无法打开的未签名文件；按上面 3 步创建最可靠。</span></div>
+          </div>
+        </div>
+        <p class="notice" id="shortcut-auth-note" style="text-align:left">若服务开了口令，请在 URL 后加上 <code>&amp;token=你的口令</code>。</p>
+      </details>
+    </div>
+
+    <div class="card">
       <h3>粘贴地图链接</h3>
       <div class="input-row">
         <input id="urlInput" placeholder="Apple / Google / 高德地图链接，或经纬度">
@@ -232,12 +282,15 @@ pymobiledevice3 lockdown wifi-connections on</pre>
       </div>
       <div class="drop" id="drop">将 &lt;UDID&gt;.plist 和 SystemConfiguration.plist 拖到这里，或点击「选择 .plist 文件」</div>
       <input id="plist-files" type="file" accept=".plist,application/x-plist,application/xml" multiple hidden>
-      <div class="row"><button class="btn btn-primary" id="import-plist" type="button">选择 .plist 文件</button></div>
+      <div class="row">
+        <button class="btn btn-primary" id="import-plist" type="button">选择 .plist 文件</button>
+        <a class="btn btn-secondary" id="download-windows-pair" href="/api/tools/windows-pair.bat">下载 Windows 一键配对工具 (.bat)</a>
+      </div>
     </div>
 
     <div class="footer-card">
       <div class="footer-brand">OpenWrt 无线虚拟定位</div>
-      <div class="footer-version">v0.3.1</div>
+      <div class="footer-version">v0.4.0</div>
       <p class="notice">仅供受信局域网使用。请勿把 47321 端口暴露到公网。</p>
     </div>
     <div class="status" id="status">在地图上选好位置后点击「设置定位」，然后在手机地图确认</div>
@@ -495,6 +548,7 @@ function switchLayer(name) {
 
 function paint(data) {
   lastPayload = data || {};
+  if (typeof fillShortcutUrls === "function") fillShortcutUrls();
   const tunneld = data.tunneld || {};
   const ready = !!tunneld.reachable;
   paintDeviceSelect(data);
@@ -610,10 +664,14 @@ function paint(data) {
     info.className = "fav-info";
     const name = document.createElement("div");
     name.className = "fav-name";
-    name.textContent = item.filename;
+    if (item.system_configuration) name.textContent = item.display_name || "系统配对配置";
+    else {
+      const title = item.device_name || item.display_name || "未命名设备";
+      name.textContent = item.product_version ? (title + "  iOS " + item.product_version) : title;
+    }
     const meta = document.createElement("div");
     meta.className = "fav-coords";
-    meta.textContent = item.udid ? ("UDID " + item.udid) : (item.system_configuration ? "系统配对配置" : "");
+    meta.textContent = item.filename + (item.system_configuration ? "  ·  系统配对配置" : "");
     info.appendChild(name);
     info.appendChild(meta);
     const del = document.createElement("button");
@@ -646,7 +704,7 @@ async function chooseDevice(item) {
   $("action-error").textContent = "";
   const transport = item.transport || (item.connection === "usb" ? "usbmux" : "mobdev2");
   try {
-    paint(await api("/api/select", {method:"POST", body: JSON.stringify({udid: item.udid, transport, host: item.host || ""})}));
+    paint(await api("/api/select", {method:"POST", body: JSON.stringify({udid: item.udid, transport, host: item.host || "", name: item.name || ""})}));
     toast("已选择 " + (item.name || item.udid));
   } catch (error) { $("action-error").textContent = error.message; toast(error.message); }
 }
@@ -663,7 +721,7 @@ async function setLocation(immediate) {
   try {
     let ok = false;
     await withBusy(btn, "设置中...", async () => {
-      const data = await api("/api/location/start", {method:"POST", body: JSON.stringify({latitude: String(lat), longitude: String(lon), profile: profileFor(), confirm: true})});
+      const data = await api("/api/set", {method:"POST", body: JSON.stringify({latitude: String(lat), longitude: String(lon), profile: profileFor(), confirm: true, replace: true})});
       paint(data);
       ok = !!(data.session_alive || data.command_accepted);
       if (ok) toast("✅ 已下发定位，请在手机地图确认", 3000, "ok");
@@ -755,6 +813,50 @@ CITIES.forEach((city) => {
   $("presets").appendChild(btn);
 });
 document.querySelectorAll(".layer-btn").forEach((b) => b.addEventListener("click", () => switchLayer(b.dataset.layer)));
+function pageOrigin() { return window.location.origin; }
+function shortcutTokenQuery() {
+  return NO_AUTH ? "" : "&token=";
+}
+function shortcutSetUrl(params) {
+  const query = new URLSearchParams(params || {});
+  query.set("format", "text");
+  let url = pageOrigin() + "/api/shortcut/set?" + query.toString();
+  if (!NO_AUTH && !query.has("token")) url += "&token=";
+  return url;
+}
+function fillShortcutUrls() {
+  const setUrl = pageOrigin() + "/api/shortcut/set?format=text&text=" + (NO_AUTH ? "" : "&token=");
+  const clearUrl = pageOrigin() + "/api/shortcut/clear?format=text" + (NO_AUTH ? "" : "&token=");
+  const statusUrl = pageOrigin() + "/api/shortcut/status?format=text" + (NO_AUTH ? "" : "&token=");
+  if ($("shortcut-set-url")) $("shortcut-set-url").textContent = setUrl;
+  if ($("shortcut-clear-url")) $("shortcut-clear-url").textContent = clearUrl;
+  if ($("shortcut-status-url")) $("shortcut-status-url").textContent = statusUrl;
+  if ($("shortcut-guide-set")) $("shortcut-guide-set").textContent = setUrl;
+  const box = $("shortcut-presets");
+  if (box) {
+    const lines = CITIES.map((city) => city.name + "  " + shortcutSetUrl({lat: String(city.lat), lon: String(city.lon)}));
+    const favs = lastPayload.favorites || [];
+    favs.forEach((item) => lines.push((item.name || "收藏") + "  " + shortcutSetUrl({lat: String(item.latitude), lon: String(item.longitude)})));
+    box.textContent = lines.join("\n");
+  }
+  if ($("shortcut-auth-note")) $("shortcut-auth-note").style.display = NO_AUTH ? "none" : "";
+  if ($("download-windows-pair")) $("download-windows-pair").href = "/api/tools/windows-pair.bat";
+}
+function bindCopy(id, sourceId) {
+  const btn = $(id);
+  if (!btn) return;
+  btn.onclick = async () => {
+    const node = $(sourceId);
+    const value = node ? node.textContent : "";
+    try { await navigator.clipboard.writeText(value); toast("已复制到剪贴板", 2000, "ok"); }
+    catch (e) { toast("复制失败，请手动选择地址", 2500, "bad"); }
+  };
+}
+fillShortcutUrls();
+bindCopy("copy-shortcut-set", "shortcut-set-url");
+bindCopy("copy-shortcut-clear", "shortcut-clear-url");
+bindCopy("copy-shortcut-status", "shortcut-status-url");
+bindCopy("copy-shortcut-guide", "shortcut-guide-set");
 $("discover").onclick = scan;
 $("choose").onclick = async () => {
   try {
@@ -774,6 +876,14 @@ $("clear").onclick = async () => {
 };
 $("locate").onclick = async () => {
   if (!window.isSecureContext) {
+    const selected = lastPayload.selected || {};
+    const devices = lastPayload.devices || [];
+    const current = devices.find((d) => d.udid === selected.udid && d.latitude != null) || devices.find((d) => d.latitude != null) || lastPayload.session;
+    if (current && current.latitude != null && current.longitude != null) {
+      moveTo(Number(current.latitude), Number(current.longitude), 16);
+      toast("当前页面不是 HTTPS，浏览器不允许获取本机 GPS。已定位到正在模拟的坐标，也可直接在地图点选或搜索地点", 4000);
+      return;
+    }
     toast("浏览器仅在 HTTPS 下允许获取本机 GPS，请直接在地图点选或搜索地点", 4000);
     return;
   }

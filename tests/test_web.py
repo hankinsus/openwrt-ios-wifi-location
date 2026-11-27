@@ -214,12 +214,18 @@ def test_explicit_start_duplicate_and_no_replay_after_restart(tmp_path):
             port,
             "/api/location/start",
             "POST",
-            {"latitude": "11", "longitude": "21", "profile": "ios17", "confirm": True},
+            {"latitude": "11", "longitude": "21", "profile": "ios17", "confirm": True, "replace": True},
             headers,
         )
-        assert status == 400
-        assert "第二个会话" in body
+        assert status == 200, body
+        payload = json.loads(body)
+        assert payload["command_accepted"] is True
+        assert payload["session_alive"] is True
+        session = payload.get("session") or {}
+        assert session.get("latitude") == "11"
+        assert session.get("longitude") == "21"
         sets_before = (tmp_path / "argv.log").read_text(encoding="utf-8").count("simulate-location")
+        assert sets_before >= 2
     finally:
         _stop(proc)
     proc, host, port = _start(tmp_path)
@@ -233,10 +239,27 @@ def test_explicit_start_duplicate_and_no_replay_after_restart(tmp_path):
         assert (tmp_path / "argv.log").read_text(encoding="utf-8").count("simulate-location") == sets_before
     finally:
         _stop(proc)
-        session = json.loads((tmp_path / "state" / "state.json").read_text(encoding="utf-8")).get("session") or {}
-        pid = session.get("pid")
-        if isinstance(pid, int) and pid > 1:
-            os.kill(pid, 9)
+        payload = json.loads((tmp_path / "state" / "state.json").read_text(encoding="utf-8"))
+        pids = []
+        session = payload.get("session") or {}
+        if isinstance(session, dict):
+            for key in ("pid", "watchdog_pid", "child_pid"):
+                if isinstance(session.get(key), int):
+                    pids.append(session[key])
+        for item in (payload.get("sessions") or {}).values() if isinstance(payload.get("sessions"), dict) else []:
+            if isinstance(item, dict):
+                for key in ("pid", "watchdog_pid", "child_pid"):
+                    if isinstance(item.get(key), int):
+                        pids.append(item[key])
+        for pid in pids:
+            if isinstance(pid, int) and pid > 1:
+                try:
+                    os.killpg(pid, 9)
+                except OSError:
+                    try:
+                        os.kill(pid, 9)
+                    except OSError:
+                        pass
 
 
 def test_watch_checks_visibility_without_setting_location(tmp_path):
@@ -265,7 +288,7 @@ def test_install_and_uninstall_are_reversible(tmp_path):
     installed = install_files(systemd_root, state_dir=state, executable=sys.executable)
     unit = Path(installed["unit"]).read_text(encoding="utf-8")
     secret = (state / "web.secret").read_text(encoding="utf-8").strip()
-    assert "Restart=on-failure" in unit
+    assert "Restart=always" in unit
     assert "0.0.0.0" not in unit
     assert secret not in unit
     assert oct((state / "web.secret").stat().st_mode & 0o777) == "0o600"

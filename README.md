@@ -1,4 +1,4 @@
-# ios-wifi-loc 0.3.1
+# ios-wifi-loc 0.4.0
 
 在 R4S 或其它 OpenWrt / Debian / Ubuntu 机器上，**一条命令**完成下载、补齐环境和安装。升级同一条命令即可，会保留已有口令和配对文件：
 
@@ -58,6 +58,8 @@ v0.3.0 按 NanoPi R4S（OpenWrt 24.10.0）与 iPhone 17 Pro（iOS 27.2.1）上�
 支持同时管理多台 iPhone：每台设备有独立的模拟进程，给 B 设定位不会打断 A；清除某一台也只影响这一台。
 
 v0.3.1 为每台正在模拟的设备加上自动重连守护：当手机休眠或 Wi-Fi 隧道复位导致 `simulate-location set` 因 `Network unreachable` / `DTX reader exiting` 退出时，会等待隧道恢复并按原坐标重新发起，直到你在页面上清除或改选其它坐标。网页顶部用设备下拉菜单选择已发现的 iPhone，配对卡片提供可复制的 Windows 三步说明。按钮点击会有按压和加载反馈；在普通 HTTP 局域网地址上，「当前位置」不再调用浏览器 GPS（会因非 HTTPS 被拒绝），请直接在地图点选或搜索地点。
+
+v0.4.0 增加本机 iOS 快捷指令与地图分享接口（`/api/shortcut/set` 可解析高德 / 苹果 / 谷歌 / 百度分享链接或坐标，并自动把 GCJ-02、BD-09 转成 WGS-84），网页或快捷指令再次设置同一台设备时会自动替换旧坐标。配对页可下载 Windows 一键配对工具，并把 `C:\ProgramData\Apple\Lockdown\` 里的 `.plist` 直接上传到路由器；配对列表会显示设备名称。安装脚本自动识别 OpenWrt / Debian / Alpine，升级时保留状态。
 
 iPhone 本机精简版在 `ios-native/`，许可证是 AGPL-3.0，和这个 Python 控制台不是同一个程序。本机程序用免费 Apple ID 侧载，描述文件大约 7 天有效；付费开发者计划不是前提。这个 Python 控制台不在 R4S 上安装该 App，因此没有该 App 的 7 天签名。手机开发者模式是系统开关，不是会员。
 

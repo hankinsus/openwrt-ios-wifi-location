@@ -5,9 +5,9 @@ set -eu
 
 usage() {
     cat <<'EOF'
-用法：sh scripts/oneclick-uninstall.sh [--dry-run] [--purge-state] [--root 路径] [--state-dir 路径] [--prefix 路径]
+用法：sh scripts/oneclick-uninstall.sh [--dry-run] [--purge-state|--purge] [--root 路径] [--state-dir 路径] [--prefix 路径]
 
-删除 procd 或 systemd 启动脚本，以及 oneclick 创建的 venv 或隔离目录。
+删除 procd、systemd 或 OpenRC 启动脚本，以及 oneclick 创建的 venv 或隔离目录。
 不卸载系统里的 Python、usbmuxd 或其他软件包，也不改防火墙。
 默认保留状态目录里的口令。加上 --purge-state 才删除状态目录。
 EOF
@@ -22,7 +22,7 @@ PREFIX=
 while [ $# -gt 0 ]; do
     case "$1" in
         --dry-run) DRY=1; shift ;;
-        --purge-state) PURGE=1; shift ;;
+        --purge-state|--purge) PURGE=1; shift ;;
         --root)
             [ $# -ge 2 ] || { echo "缺少 --root 的路径" >&2; exit 2; }
             ROOT=$2
@@ -71,7 +71,7 @@ if [ -z "$PREFIX" ]; then
     fi
 fi
 
-echo "将删除启动脚本（$ROOT 下的 procd 或 systemd 单元）。"
+echo "将删除启动脚本（$ROOT 下的 procd、systemd 或 OpenRC 单元）。"
 echo "将删除隔离环境：$PREFIX"
 if [ "$PURGE" -eq 1 ]; then
     echo "将删除状态目录：$STATE"
@@ -83,6 +83,22 @@ echo "不卸载系统软件包，不修改路由、防火墙或 PassWall。"
 if [ "$DRY" -eq 1 ]; then
     echo "这是预览，没有删除文件。"
     exit 0
+fi
+
+if [ "$ROOT" = "/" ]; then
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop ios-wifi-loc.service ios-wifi-loc-tunneld.service 2>/dev/null || true
+        systemctl disable ios-wifi-loc.service ios-wifi-loc-tunneld.service 2>/dev/null || true
+    fi
+    if [ -x /etc/init.d/ios-wifi-loc ]; then
+        /etc/init.d/ios-wifi-loc stop 2>/dev/null || true
+        /etc/init.d/ios-wifi-loc disable 2>/dev/null || true
+        rc-update del ios-wifi-loc default 2>/dev/null || true
+    fi
+    if [ -x /etc/init.d/ios-wifi-loc-tunneld ]; then
+        /etc/init.d/ios-wifi-loc-tunneld stop 2>/dev/null || true
+        rc-update del ios-wifi-loc-tunneld default 2>/dev/null || true
+    fi
 fi
 
 PY=${IOS_WIFI_LOC_PYTHON:-python3}

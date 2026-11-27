@@ -32,7 +32,7 @@ class StateStore:
         return handle
 
     def _empty(self) -> dict:
-        return {"version": 1, "selected": None, "session": None, "sessions": {}, "discovery": []}
+        return {"version": 1, "selected": None, "session": None, "sessions": {}, "discovery": [], "device_names": {}}
 
     def _load_unlocked(self) -> dict:
         if not self.path.exists():
@@ -49,6 +49,7 @@ class StateStore:
         data.setdefault("favorites", [])
         data.setdefault("last_command", None)
         data.setdefault("sessions", {})
+        data.setdefault("device_names", {})
         return data
 
     def _save_unlocked(self, data: dict) -> None:

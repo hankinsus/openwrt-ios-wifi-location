@@ -25,9 +25,13 @@ def validate_interface(name: str | None) -> str | None:
 def detect_init(root: Path) -> str:
     if (root / "etc/openwrt_release").exists():
         return "procd"
+    if (root / "etc/alpine-release").exists():
+        return "openrc"
     systemd = root / "usr/lib/systemd/system"
     if systemd.is_dir() or (root / "etc/systemd/system").is_dir():
         return "systemd"
+    if (root / "sbin/openrc").exists() or (root / "sbin/openrc-run").exists() or (root / "etc/init.d/openrc").exists():
+        return "openrc"
     return "none"
 
 
@@ -199,7 +203,7 @@ def _systemd_unit(executable: str, state_dir: Path, interface: str | None, binar
         "Type=simple\n"
         f"ExecStartPre={pre}\n"
         f"ExecStart={command}\n"
-        "Restart=on-failure\n"
+        "Restart=always\n"
         "RestartSec=5\n"
         "StartLimitIntervalSec=300\n"
         "StartLimitBurst=5\n"
@@ -220,7 +224,7 @@ def _systemd_tunneld_unit(binary: str) -> str:
         "[Service]\n"
         "Type=simple\n"
         f"ExecStart={command}\n"
-        "Restart=on-failure\n"
+        "Restart=always\n"
         "RestartSec=5\n"
         "StartLimitIntervalSec=300\n"
         "StartLimitBurst=5\n"
@@ -228,6 +232,49 @@ def _systemd_tunneld_unit(binary: str) -> str:
         "\n"
         "[Install]\n"
         "WantedBy=multi-user.target\n"
+    )
+
+
+def _openrc_unit(executable: str, state_dir: Path, interface: str | None, binary: str | None, *, require_auth: bool) -> str:
+    command = _serve_command(executable, state_dir, interface, binary, require_auth=require_auth)
+    persist = shlex.quote(str(state_dir / "lockdown"))
+    return (
+        "#!/sbin/openrc-run\n"
+        "name=\"ios-wifi-loc\"\n"
+        "command_background=yes\n"
+        'pidfile="/run/ios-wifi-loc.pid"\n'
+        "\n"
+        "depend() {\n"
+        "\tneed net\n"
+        "\tuse avahi-daemon usbmuxd\n"
+        "}\n"
+        "\n"
+        "start_pre() {\n"
+        f"\tmkdir -p {persist} /var/lib/lockdown\n"
+        f"\tchmod 700 {persist} 2>/dev/null || true\n"
+        f"\tcp -a {state_dir / 'lockdown'}/*.plist /var/lib/lockdown/ 2>/dev/null || true\n"
+        "}\n"
+        "\n"
+        f"command={shlex.quote(command.split()[0])}\n"
+        f"command_args={shlex.quote(' '.join(command.split()[1:]))}\n"
+    )
+
+
+def _openrc_tunneld_unit(binary: str) -> str:
+    command = _tunneld_command(binary)
+    parts = command.split()
+    return (
+        "#!/sbin/openrc-run\n"
+        "name=\"ios-wifi-loc-tunneld\"\n"
+        "command_background=yes\n"
+        'pidfile="/run/ios-wifi-loc-tunneld.pid"\n'
+        "\n"
+        "depend() {\n"
+        "\tneed net\n"
+        "}\n"
+        "\n"
+        f"command={shlex.quote(parts[0])}\n"
+        f"command_args={shlex.quote(' '.join(parts[1:]))}\n"
     )
 
 
@@ -253,7 +300,20 @@ def install_files(
     resolved_binary = binary or infer_binary_from_python(exe) or "pymobiledevice3"
     installed = None
     tunneld_unit = None
-    if kind == "systemd":
+    if kind == "openrc":
+        destination = root / "etc/init.d/ios-wifi-loc"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
+            _openrc_unit(exe, state_dir, interface, resolved_binary, require_auth=require_auth),
+            encoding="utf-8",
+        )
+        os.chmod(destination, 0o755)
+        companion = root / "etc/init.d/ios-wifi-loc-tunneld"
+        companion.write_text(_openrc_tunneld_unit(resolved_binary), encoding="utf-8")
+        os.chmod(companion, 0o755)
+        installed = destination
+        tunneld_unit = companion
+    elif kind == "systemd":
         destination = root / "etc/systemd/system/ios-wifi-loc.service"
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(
@@ -291,6 +351,7 @@ def uninstall_files(root: Path, *, state_dir: Path, purge_state: bool) -> dict:
         "etc/systemd/system/ios-wifi-loc.service",
         "etc/systemd/system/ios-wifi-loc-tunneld.service",
         "etc/init.d/ios-wifi-loc",
+        "etc/init.d/ios-wifi-loc-tunneld",
     ):
         path = root / relative
         if path.exists():

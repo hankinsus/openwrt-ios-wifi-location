@@ -15,7 +15,7 @@ usage() {
   curl -fsSL .../install.sh | sh -s -- --interface br-lan
   curl -fsSL .../install.sh | sh -s -- --dry-run
 
-其余参数原样交给 scripts/oneclick-install.sh，例如 --interface、--dry-run、--root、--state-dir、--prefix。
+其余参数原样交给 scripts/oneclick-install.sh，例如 --interface、--dry-run、--upgrade、--root、--state-dir、--prefix。
 
 若未写 --interface，并且本机是 OpenWrt（存在 /etc/openwrt_release）且有 br-lan 网卡，会自动加上 --interface br-lan。服务仍然不会监听 0.0.0.0。
 

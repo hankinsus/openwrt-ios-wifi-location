@@ -92,6 +92,7 @@ def _parser() -> argparse.ArgumentParser:
     set_cmd.add_argument("--latitude", required=True)
     set_cmd.add_argument("--longitude", required=True)
     set_cmd.add_argument("--foreground", action="store_true")
+    set_cmd.add_argument("--replace", action="store_true", help="若该设备已在模拟，先停止再改到新坐标")
 
     clear_cmd = sub.add_parser("clear", help="清除模拟定位")
     clear_cmd.add_argument("--allow-usb", action="store_true")
@@ -196,6 +197,7 @@ def main(argv: list[str] | None = None) -> int:
                 foreground=args.foreground,
                 allow_usb=args.allow_usb,
                 allow_legacy=args.allow_legacy_ios17,
+                replace=bool(getattr(args, "replace", False)),
             )
         elif args.cmd == "clear":
             outcome = clear_location(
