@@ -10,33 +10,14 @@ class ToolError(ValueError):
     pass
 
 
-WINDOWS_PAIR_STEP1_PS = """function Get-IosWifiPython {
-  foreach ($name in @('python', 'py')) {
-    $cmd = Get-Command $name -ErrorAction SilentlyContinue
-    if (-not $cmd) { continue }
-    if ($cmd.Source -match 'WindowsApps') { continue }
-    try {
-      & $name -c "import sys; raise SystemExit(0 if sys.version_info>=(3,9) else 1)" 2>$null
-      if ($LASTEXITCODE -eq 0) { return $name }
-    } catch {}
-  }
-  return $null
-}
-$py = Get-IosWifiPython
-if (-not $py) {
-  Write-Host '没有找到 Python 3.9+，正在用 winget 安装 Python 3.12...'
-  winget install -e --id Python.Python.3.12 --accept-package-agreements --accept-source-agreements
-  if ($LASTEXITCODE -ne 0) { throw 'winget 未能自动安装 Python，请手动安装 Python 3.12 后重试。' }
-  $env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User')
-  $py = Get-IosWifiPython
-  if (-not $py) { throw '已安装 Python，但当前窗口还找不到。请关闭并重新打开 PowerShell 后再运行本段命令。' }
-}
-Write-Host "已找到 Python：$py"
-& $py -m pip install pymobiledevice3==11.63.1
-if ($LASTEXITCODE -ne 0) { throw '安装 pymobiledevice3 失败。' }
-& $py -m pymobiledevice3 lockdown pair
-& $py -m pymobiledevice3 amfi enable-developer-mode
-""".strip() + "\n"
+WINDOWS_PAIR_STEP1_PS = """python -m pip install pymobiledevice3==11.63.1
+pymobiledevice3 lockdown pair
+pymobiledevice3 amfi enable-developer-mode
+"""
+
+WINDOWS_PAIR_STEP2_PS = """pymobiledevice3 lockdown pair
+pymobiledevice3 lockdown wifi-connections on
+"""
 
 WINDOWS_PAIR_UPLOAD_PS = r"""$dir = 'C:\ProgramData\Apple\Lockdown'
 if (-not (Test-Path $dir)) { throw ('找不到配对目录：' + $dir + '。请确认已安装 Apple Devices 或 iTunes，并已完成配对。') }
@@ -63,16 +44,6 @@ try {
   if ($resp.pairing) { Write-Host ('服务器已保存 ' + $resp.pairing.count + ' 个配对文件。现在可以回到网页刷新查看。') }
 } catch { throw ('上传失败：' + $_.Exception.Message) }
 """.strip() + "\n"
-
-WINDOWS_PAIR_STEP2_PS = (
-    "$server = '__SERVER_ORIGIN__'\n"
-    "$token = '__PAIR_TOKEN__'\n"
-    "python -m pymobiledevice3 lockdown pair\n"
-    "if ($LASTEXITCODE -ne 0) { throw '配对失败。请确认已点信任，并再试一次。' }\n"
-    "python -m pymobiledevice3 lockdown wifi-connections on\n"
-    + WINDOWS_PAIR_UPLOAD_PS
-)
-
 
 def powershell_bat_commands(script: str, *, last: bool = False) -> str:
     """Turn a PowerShell snippet into powershell -Command fragments for a .bat file."""

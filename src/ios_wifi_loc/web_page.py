@@ -15,8 +15,11 @@ PAGE = r"""<!DOCTYPE html>
 * { margin:0; padding:0; box-sizing:border-box; }
 html { -webkit-text-size-adjust:100%; }
 body { font-family:-apple-system,system-ui,sans-serif; background:var(--bg); color:var(--text); overflow-x:hidden; }
+#app, #login-card { max-width:720px; width:100%; margin:0 auto; }
+#app { padding:0 16px 24px; }
+.map-wrap { width:100%; border-radius:12px; overflow:hidden; margin-top:12px; }
 #map { height:50vh; width:100%; min-height:250px; background:#d8d8dc; }
-.panel { padding:16px; max-width:600px; width:100%; margin:0 auto 30px auto; }
+.panel { padding:16px 0; width:100%; margin:0 auto 8px auto; }
 .card { background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); overflow:hidden; }
 .card h3 { font-size:15px; font-weight:600; margin-bottom:10px; }
 .coords { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:14px; color:#333; padding:8px 12px; background:var(--bg); border-radius:8px; word-break:break-all; }
@@ -102,37 +105,26 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .pair-step .pair-cmds { margin-top:8px; user-select:all; }
 .copy-btn { flex:none; min-width:auto; margin-left:auto; }
 
-.device-info { margin-top:10px; background:#e8f1ff; border:1px solid var(--blue); border-radius:10px; padding:10px 12px; display:flex; align-items:flex-start; justify-content:space-between; gap:8px 12px; flex-wrap:wrap; min-width:0; }
-.device-info-main { flex:1 1 12rem; min-width:0; }
-.device-info-title { font-size:15px; font-weight:600; line-height:1.35; overflow-wrap:anywhere; word-break:break-word; }
-.device-info-meta { font-size:11px; color:#3a3a3c; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-top:3px; overflow-wrap:anywhere; word-break:break-all; }
-.device-info-pills { display:flex; align-items:flex-start; justify-content:flex-end; gap:6px; flex:1 1 10rem; min-width:0; max-width:100%; flex-wrap:wrap; }
-.device-info .device-status { margin-top:0; min-height:0; font-size:inherit; display:flex; align-items:flex-start; gap:6px; flex-wrap:wrap; max-width:100%; }
-.device-info .device-status .badge { margin-right:0; white-space:normal; overflow-wrap:anywhere; word-break:break-word; max-width:100%; line-height:1.35; }
+.device-info { margin-top:10px; background:#e8f1ff; border:1px solid var(--blue); border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; align-items:stretch; gap:6px; min-width:0; }
+.device-info-head { display:flex; justify-content:space-between; align-items:center; gap:8px; min-width:0; }
+.device-info-title { flex:1; min-width:0; font-size:15px; font-weight:600; line-height:1.35; overflow-wrap:anywhere; word-break:break-word; }
+.device-info-meta { font-size:11px; color:#3a3a3c; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; overflow-wrap:anywhere; word-break:break-all; }
+.device-info .device-status { margin-top:0; min-height:0; width:100%; }
+.device-info .device-status .badge { margin-right:0; display:inline-block; white-space:normal; overflow-wrap:anywhere; word-break:break-word; max-width:100%; line-height:1.35; }
 .badge-pick { background:var(--blue); color:#fff; flex-shrink:0; }
 @media (max-width:420px) {
-  .device-info { align-items:flex-start; flex-direction:column; }
-  .device-info-pills { width:100%; justify-content:flex-start; flex:1 1 auto; }
+  .device-info-head { align-items:center; }
 }
 @media (max-width:600px) {
-  .panel { padding:12px; margin-bottom:20px; }
+  #app, #login-card { max-width:100%; }
+  #app { padding:0 12px 20px; }
+  .panel { padding:12px 0; }
   #map { height:42vh; min-height:220px; }
   .btn { min-height:44px; }
   .btn-sm { min-height:36px; }
   .device-select { width:100%; }
-  .device-info { flex-direction:column; align-items:stretch; }
-  .device-info-main, .device-info-pills { flex:1 1 auto; width:100%; }
-  .device-info-pills { justify-content:flex-start; }
   .layer-switch { max-width:calc(100% - 16px); }
   .row .btn, .shortcut-install .btn { flex:1 1 calc(50% - 8px); }
-}
-@media (min-width:601px) and (max-width:1024px) {
-  .panel { max-width:760px; padding:20px; }
-  #map { height:48vh; min-height:320px; }
-}
-@media (min-width:1025px) {
-  .panel { max-width:820px; padding:24px; }
-  #map { height:52vh; min-height:360px; }
 }
 .pair-group { background:var(--bg); border-radius:10px; padding:12px; margin-bottom:8px; }
 .pair-group-head { font-size:14px; font-weight:600; margin-bottom:8px; }
@@ -175,15 +167,13 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
       </div>
       <select id="device-select" class="field device-select" aria-label="选择设备"></select>
       <div id="device-info" class="device-info" hidden>
-        <div class="device-info-main">
+        <div class="device-info-head">
           <div class="device-info-title" id="device-info-title"></div>
-          <div class="device-info-meta" id="device-info-udid"></div>
+          <span class="badge badge-pick" id="device-info-picked" hidden>已选择</span>
         </div>
-        <div class="device-info-pills" id="device-info-pills">
-          <div id="device-status" class="device-status"></div>
-        </div>
+        <div class="device-info-meta" id="device-info-udid"></div>
+        <div id="device-status" class="device-status"></div>
       </div>
-      <div id="tunneld-line" class="notice" style="text-align:left;margin:8px 0 0 0"></div>
       <details id="manual-device">
         <summary>高级 / 手动添加</summary>
         <p class="notice" style="text-align:left;margin:8px 0 0 0">传输类型、主机和标识仅在设备未被自动发现时需要手动填写。</p>
@@ -263,7 +253,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
           <div class="pair-step">
             <div class="pair-step-h">
               <span class="step-no">1</span>
-              <span>安装 Apple Devices / iTunes，手机暂时关闭密码。用 PowerShell 自动检测或安装 Python，再装工具并开启开发者模式：</span>
+              <span>安装 Apple Devices / iTunes，手机暂时关闭密码。用 PowerShell 装工具并开启开发者模式：</span>
               <button type="button" class="btn btn-sm btn-secondary copy-btn" data-copy-target="pair-cmd-1">复制</button>
             </div>
             <pre class="pair-cmds" id="pair-cmd-1">__PAIR_CMD_1__</pre>
@@ -271,7 +261,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
           <div class="pair-step">
             <div class="pair-step-h">
               <span class="step-no">2</span>
-              <span>配对、开启 Wi-Fi，并按当前网页地址自动上传最新的 &lt;UDID&gt;.plist 和 SystemConfiguration.plist：</span>
+              <span>配对并开启 Wi-Fi 连接：</span>
               <button type="button" class="btn btn-sm btn-secondary copy-btn" data-copy-target="pair-cmd-2">复制</button>
             </div>
             <pre class="pair-cmds" id="pair-cmd-2">__PAIR_CMD_2__</pre>
@@ -279,9 +269,9 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
           <div class="pair-step">
             <div class="pair-step-h">
               <span class="step-no">3</span>
-              <span>如果上面的脚本已自动上传，直接刷新即可；否则可手动选择上传 <code>C:\ProgramData\Apple\Lockdown\</code> 里的 &lt;UDID&gt;.plist 和 SystemConfiguration.plist（免 Xftp，自动持久化到 <code>/etc/ios-wifi-loc/lockdown</code>）。</span>
+              <span>上传 <code>C:\ProgramData\Apple\Lockdown\</code> 里的 &lt;UDID&gt;.plist 和 SystemConfiguration.plist：</span>
             </div>
-            <p class="notice" style="text-align:left;margin:8px 0 0 0">macOS 路径是 /var/db/lockdown/。只需配对一次，之后可在同一局域网无线使用。</p>
+            <p class="notice" style="text-align:left;margin:8px 0 0 0">上传后会保存到 <code>/etc/ios-wifi-loc/lockdown</code>。macOS 路径是 /var/db/lockdown/。只需配对一次，之后可在同一局域网无线使用。</p>
           </div>
         </div>
         <div class="drop" id="drop">将 &lt;UDID&gt;.plist 和 SystemConfiguration.plist 拖到这里，或点击「选择 .plist 文件」</div>
@@ -292,31 +282,9 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
       </details>
     </div>
 
-
-condary" id="download-windows-pair" href="/api/tools/windows-pair.bat">下载 Windows 一键配对工具 (.bat)</a>
-      </div>
-    </div>
-
-
-    <div class="card">
-      <h3>当前模拟状态</h3>
-      <div class="active-loc">
-        <div class="label">本机命令与会话</div>
-        <div class="value" id="command-line">正在读取…</div>
-      </div>
-      <div class="active-loc">
-        <div class="label">手机定位</div>
-        <div class="value" id="phone-line">未能确认。进程还在不能代表手机坐标。</div>
-      </div>
-      <p class="notice" id="summary" style="text-align:left"></p>
-    </div>
-
     <div class="footer-card">
-      <div class="footer-brand">OpenWrt 无线虚拟定位</div>
-      <div class="footer-version">v0.4.4</div>
-      <p class="notice">仅供受信局域网使用。请勿把 19443 端口暴露到公网。</p>
+      <div class="footer-brand">OpenWrt 无线虚拟定位 · v0.4.5</div>
     </div>
-    <div class="status" id="status">在地图上选好位置后点击「设置定位」，然后在手机地图确认</div>
     <p id="action-error" class="bad"></p>
     <p class="notice" id="logout-wrap" hidden><button class="btn btn-sm btn-secondary" id="logout" type="button">退出</button></p>
   </div>
@@ -462,7 +430,8 @@ function paintDeviceSelect(data) {
   const current = devices.find((d) => d.udid === selectedId);
   const info = $("device-info");
   const box = $("device-status");
-  box.replaceChildren();
+  const picked = $("device-info-picked");
+  if (box) box.replaceChildren();
   if (current) {
     if (info) info.hidden = false;
     if ($("device-info-title")) $("device-info-title").textContent = deviceCardTitle(current);
@@ -471,22 +440,22 @@ function paintDeviceSelect(data) {
     bits.push(current.udid);
     if (current.host) bits.push(current.host);
     if ($("device-info-udid")) $("device-info-udid").textContent = bits.join(" ");
-    const badge = document.createElement("span");
-    const waiting = (current.waiting_reconnect || current.waiting_for_wifi) && current.watchdog_active;
-    const holding = current.holding || current.session_alive || current.desired;
-    badge.className = "badge " + (waiting ? "badge-wait" : (holding || current.tunnel_ready ? "badge-on" : (ready ? "badge-wait" : "badge-off")));
-    const statusText = deviceStatusText(current, ready);
-    badge.textContent = statusText === "隧道就绪" ? "隧道已就绪" : statusText;
-    box.appendChild(badge);
-    const picked = document.createElement("span");
-    picked.className = "badge badge-pick";
-    picked.textContent = "已选择";
-    box.appendChild(picked);
+    if (picked) picked.hidden = false;
+    if (box) {
+      const badge = document.createElement("span");
+      const waiting = (current.waiting_reconnect || current.waiting_for_wifi) && current.watchdog_active;
+      const holding = current.holding || current.session_alive || current.desired;
+      badge.className = "badge " + (waiting ? "badge-wait" : (holding || current.tunnel_ready ? "badge-on" : (ready ? "badge-wait" : "badge-off")));
+      const statusText = deviceStatusText(current, ready);
+      badge.textContent = statusText === "隧道就绪" ? "隧道已就绪" : statusText;
+      box.appendChild(badge);
+    }
   } else {
     if (info) info.hidden = !devices.length;
     if ($("device-info-title")) $("device-info-title").textContent = devices.length ? "请选择一台 iPhone" : "未发现设备";
     if ($("device-info-udid")) $("device-info-udid").textContent = "";
-    if (devices.length) box.textContent = "切换上方列表即可立即选中";
+    if (picked) picked.hidden = true;
+    if (box && devices.length) box.textContent = "切换上方列表即可立即选中";
   }
 }
 function esc(s) {
@@ -613,29 +582,10 @@ function switchLayer(name) {
 
 function paint(data) {
   lastPayload = data || {};
-  const tunneld = data.tunneld || {};
-  const ready = !!tunneld.reachable;
   paintDeviceSelect(data);
-  $("tunneld-line").textContent = ready
-    ? ("tunneld 已运行，发现 " + ((tunneld.tunnels || []).length) + " 条无线隧道")
-    : "tunneld 未运行。iOS 17+ 无线定位需要它，安装后应由系统服务自动拉起。";
   if (data.selected && data.selected.udid) $("udid").value = data.selected.udid;
   if (data.selected && data.selected.transport) $("transport").value = data.selected.transport;
   if (data.selected && data.selected.host) $("host").value = data.selected.host;
-  const sess = data.session || {};
-  let cmdLine = (data.command_accepted ? "上游已接受最近一次命令" : "尚未接受，或上次没有成功")
-    + "；会话进程" + (data.session_alive ? "仍在本机运行" : "没有在运行");
-  if (sess.watchdog_active && data.session_alive) {
-    cmdLine += sess.waiting_for_wifi
-      ? "；等待 Wi-Fi / 隧道恢复后自动重连…"
-      : (sess.waiting_reconnect
-      ? "；等待隧道恢复自动重连…"
-      : "；自动重连已开启，已重连 " + (sess.reconnect_count || 0) + " 次");
-  }
-  $("command-line").textContent = cmdLine;
-  $("phone-line").textContent = "未能确认。进程还在不能代表手机坐标，请在苹果地图查看蓝点。";
-  $("summary").textContent = data.summary || "";
-  $("status").textContent = data.summary || "在地图上选好位置后点击「设置定位」，然后在手机地图确认";
   const list = $("favs");
   list.replaceChildren();
   const favs = data.favorites || [];
@@ -1008,18 +958,10 @@ $("parse-url").onclick = () => {
 $("search").onclick = searchPlace;
 $("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter") searchPlace(); });
 $("urlInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("parse-url").click(); });
-function fillPairCommands() {
-  const node = $("pair-cmd-2");
-  if (node) {
-    if (!node.dataset.template) node.dataset.template = node.textContent;
-    let text = node.dataset.template.split("__SERVER_ORIGIN__").join(window.location.origin);
-    text = text.split("__PAIR_TOKEN__").join(NO_AUTH ? "" : "在这里填入口令");
-    node.textContent = text;
-  }
+(function () {
   const note = $("pair-auth-note");
   if (note) note.style.display = NO_AUTH ? "none" : "";
-}
-fillPairCommands();
+})();
 $("drop").onclick = () => $("plist-files").click();
 $("plist-files").onchange = async (e) => {
   readPlistFiles(e.target.files);

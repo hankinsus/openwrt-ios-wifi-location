@@ -16,19 +16,20 @@ def _js_function(html: str, name: str) -> str:
 
 
 def test_version_is_043():
-    assert __version__ == "0.4.4"
+    assert __version__ == "0.4.5"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.4" in html
+    assert "v0.4.5" in html
 
 
 def test_horizontal_device_card_layout():
     html = render_page("csrf", no_auth=True)
-    assert "device-info-main" in html
-    assert "device-info-pills" in html
+    assert "device-info-head" in html
+    assert 'id="device-info-picked"' in html
     assert "flex-shrink:0" in html
     assert "badge-pick" in html
-    assert 'picked.textContent = "已选择"' in html
-    assert 'display:flex; align-items:center; justify-content:space-between' in html or "display:flex" in html
+    assert ">已选择</span>" in html
+    assert "justify-content:space-between" in html
+    assert "align-items:center" in html
     assert "@media (max-width:420px)" in html
     assert html.index('id="device-select"') < html.index('id="device-info"') < html.index("高级 / 手动添加")
 

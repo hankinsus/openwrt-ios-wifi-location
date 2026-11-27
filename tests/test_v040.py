@@ -23,7 +23,7 @@ UDID = "0123456789abcdef0123456789abcdef01234567"
 
 
 def test_version_is_040():
-    assert __version__ == "0.4.4"
+    assert __version__ == "0.4.5"
 
 
 def test_gcj_and_bd09_convert_inside_china():

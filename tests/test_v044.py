@@ -18,9 +18,9 @@ CLEAR_URL = "https://www.icloud.com/shortcuts/395385a36be94384a85480d7459d1fa1"
 
 
 def test_version_is_044():
-    assert __version__ == "0.4.4"
+    assert __version__ == "0.4.5"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.4" in html
+    assert "v0.4.5" in html
     assert "v0.4.3" not in html
 
 
@@ -114,32 +114,37 @@ def test_pairing_delete_button_matches_favorite_style():
 def test_windows_pair_detects_and_installs_python():
     html = render_page("csrf", no_auth=True)
     script = render_windows_pair_bat("http://10.16.1.2:19443")
-    for blob in (html, script):
-        assert "WindowsApps" in blob
-        assert "winget install -e --id Python.Python.3.12 --accept-package-agreements --accept-source-agreements" in blob
-        assert "GetEnvironmentVariable('Path','Machine')" in blob
-        assert "-m pymobiledevice3 lockdown pair" in blob
-        assert "-m pymobiledevice3 amfi enable-developer-mode" in blob
-        assert "pymobiledevice3==11.63.1" in blob
-        assert "@('python'" in blob or "@('python', 'py')" in blob or "@('python','py')" in blob
-    assert "python -m pymobiledevice3 lockdown wifi-connections on" in html
+    # The webpage manual steps stay short; the one-click .bat keeps the full automations.
+    assert "python -m pip install pymobiledevice3==11.63.1" in html
+    assert "pymobiledevice3 lockdown pair" in html
+    assert "pymobiledevice3 amfi enable-developer-mode" in html
+    assert "pymobiledevice3 lockdown wifi-connections on" in html
+    assert "WindowsApps" not in html
+    assert "winget install" not in html
+    assert "Invoke-RestMethod" not in html
+    assert "Get-IosWifiPython" not in html
+    assert "function fillPairCommands()" not in html
+    assert "WindowsApps" in script
+    assert "winget install -e --id Python.Python.3.12 --accept-package-agreements --accept-source-agreements" in script
+    assert "GetEnvironmentVariable('Path','Machine')" in script
+    assert "-m pymobiledevice3 lockdown pair" in script
+    assert "-m pymobiledevice3 amfi enable-developer-mode" in script
+    assert "pymobiledevice3==11.63.1" in script
+    assert "@('python'" in script or "@('python', 'py')" in script or "@('python','py')" in script
     assert "Refresh-Path" in script
     assert r"C:\ProgramData\Apple\Lockdown" in script or "C:\\ProgramData\\Apple\\Lockdown" in script
     assert "/api/pairing/import" in script
-    assert "/api/pairing/import" in html
     assert "SystemConfiguration.plist" in html and "SystemConfiguration.plist" in script
-    assert "Invoke-RestMethod" in html and "Invoke-RestMethod" in script
-    assert "content_base64" in html and "content_base64" in script
-    assert "LastWriteTime" in html and "LastWriteTime" in script
-    assert "__SERVER_ORIGIN__" in html
-    assert "function fillPairCommands()" in html
-    assert "window.location.origin" in html
+    assert "Invoke-RestMethod" in script
+    assert "content_base64" in script
+    assert "LastWriteTime" in script
     # After a successful winget install the bat continues instead of forcing a rerun.
     install_idx = script.index("winget install -e --id Python.Python.3.12")
     continue_idx = script.index("Refresh-Path", install_idx)
     rerun_exit = script.find("请先安装：", install_idx)
     assert continue_idx > install_idx
     assert rerun_exit == -1 or rerun_exit < install_idx
+
 
 def test_pairing_card_promotes_windows_tool_and_folds_manual_steps():
     html = render_page("csrf", no_auth=True)
@@ -151,7 +156,7 @@ def test_pairing_card_promotes_windows_tool_and_folds_manual_steps():
     assert "展开手动配置与手动上传 (.plist)" in html
     assert '<details class="pair-manual">' in html
     assert '<details class="pair-manual" open' not in html
-    assert "如果上面的脚本已自动上传，直接刷新即可" in html
+    assert "上传" in html and "C:\\ProgramData\\Apple\\Lockdown\\" in html
     assert 'id="import-plist"' in html
     assert 'id="drop"' in html
     assert 'id="pair-cmd-1"' in html
@@ -219,7 +224,8 @@ def test_device_dropdown_and_card_show_name_and_ios_version():
     assert "word-break:break-all" in html
     assert "@media (max-width:420px)" in html
     assert "@media (max-width:600px)" in html
-    assert "@media (min-width:601px) and (max-width:1024px)" in html
-    assert "@media (min-width:1025px)" in html
+    assert "max-width:720px" in html
+    assert "@media (min-width:601px) and (max-width:1024px)" not in html
+    assert "@media (min-width:1025px)" not in html
     assert "min-height:44px" in html
     assert "flex-shrink:0" in html
