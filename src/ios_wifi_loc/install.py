@@ -55,7 +55,7 @@ def preflight(root: Path) -> dict:
 
 
 def _serve_command(executable: str, state_dir: Path, interface: str | None) -> str:
-    parts = [executable, "-m", "ios_wifi_loc", "serve", "--state-dir", str(state_dir)]
+    parts = [executable, "-m", "ios_wifi_loc", "--state-dir", str(state_dir), "serve"]
     checked = validate_interface(interface)
     if checked:
         parts.extend(["--interface", checked])
