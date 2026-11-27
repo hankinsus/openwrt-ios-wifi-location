@@ -51,7 +51,7 @@ def test_console_stays_up_for_one_measured_minute(tmp_path):
         while time.monotonic() - started < DURATION_S:
             samples.append(sample_process(proc.pid))
             with urllib.request.urlopen(f"http://{host}:{port}/", timeout=5) as response:
-                if response.status == 200 and "OpenWrt 无线虚拟定位" in response.read().decode():
+                if response.status == 200 and "WiFi 虚拟定位" in response.read().decode():
                     ok += 1
             time.sleep(2)
         samples.append(sample_process(proc.pid))

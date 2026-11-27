@@ -340,7 +340,7 @@ def test_no_auth_dashboard_and_pairing_import(tmp_path):
         opener = _opener()
         status, page = _request(opener, host, port, "/")
         assert status == 200
-        assert "OpenWrt 无线虚拟定位" in page
+        assert "WiFi 虚拟定位" in page
         assert "NO_AUTH = true" in page
         secret = (tmp_path / "state" / "web.secret").read_text(encoding="utf-8").strip()
         assert secret not in page

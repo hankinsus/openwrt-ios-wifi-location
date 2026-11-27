@@ -84,7 +84,7 @@ chcp 65001 >nul
 setlocal EnableExtensions
 set "IOS_WIFI_LOC_SERVER={base}"
 echo ========================================
-echo  OpenWrt 无线虚拟定位 - Windows 一键配对
+echo  WiFi 虚拟定位 - Windows 一键配对
 echo  将把配对文件上传到 %IOS_WIFI_LOC_SERVER%
 echo ========================================
 echo.

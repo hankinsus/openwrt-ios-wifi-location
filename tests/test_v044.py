@@ -18,9 +18,9 @@ CLEAR_URL = "https://www.icloud.com/shortcuts/395385a36be94384a85480d7459d1fa1"
 
 
 def test_version_is_044():
-    assert __version__ == "0.4.10"
+    assert __version__ == "0.4.11"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.10" in html
+    assert "v0.4.11" in html
     assert "v0.4.3" not in html
 
 
@@ -72,7 +72,7 @@ def test_shortcut_card_is_simple_install_buttons():
     assert CLEAR_URL in html
     assert "一键安装：地图分享定位" in html
     assert "一键安装：恢复真实定位" in html
-    assert "安装后如路由器 IP 不是默认地址" in html
+    assert "安装后如本机地址不是默认地址" in html
     assert 'id="shortcut-set-icloud"' not in html
     assert 'id="shortcut-clear-icloud"' not in html
     assert "save-shortcut-set-icloud" not in html

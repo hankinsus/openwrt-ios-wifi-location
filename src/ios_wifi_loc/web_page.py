@@ -8,7 +8,7 @@ PAGE = r"""<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="csrf-token" content="__CSRF__">
-<title>OpenWrt 无线虚拟定位</title>
+<title>__PAGE_TITLE__</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <style>
 :root { --blue:#007aff; --green:#34c759; --red:#ff3b30; --gray:#8e8e93; --bg:#f2f2f7; --text:#1c1c1e; }
@@ -247,7 +247,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
         <a class="btn btn-primary" href="https://www.icloud.com/shortcuts/cf3227b48a8f484283069a087727f861" target="_blank" rel="noopener noreferrer">一键安装：地图分享定位</a>
         <a class="btn btn-primary" href="https://www.icloud.com/shortcuts/395385a36be94384a85480d7459d1fa1" target="_blank" rel="noopener noreferrer">一键安装：恢复真实定位</a>
       </div>
-      <p class="notice" style="text-align:left;margin:10px 0 0 0">安装后如路由器 IP 不是默认地址，在快捷指令里改成当前路由器地址即可。</p>
+      <p class="notice" style="text-align:left;margin:10px 0 0 0">安装后如本机地址不是默认地址，在快捷指令里改成当前访问地址即可。</p>
     </div>
 
     <div class="card">
@@ -295,7 +295,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
     </div>
 
     <div class="footer-card">
-      <div class="footer-brand">OpenWrt 无线虚拟定位 · v0.4.10</div>
+      <div class="footer-brand">__FOOTER_BRAND__</div>
     </div>
     <p id="action-error" class="bad"></p>
     <p class="notice" id="logout-wrap" hidden><button class="btn btn-sm btn-secondary" id="logout" type="button">退出</button></p>
@@ -1030,10 +1030,26 @@ setInterval(() => { if (!$("app").hidden) refresh().catch(() => {}); }, 4000);
 """
 
 
-def render_page(csrf: str, no_auth: bool = False) -> str:
+APP_TITLE = "WiFi 虚拟定位"
+
+
+def footer_brand(*, version: str | None = None, platform: str | None = None, os_release_path=None) -> str:
+    from ios_wifi_loc import __version__
+    from ios_wifi_loc.platform_label import detect_platform_label
+
+    ver = version or __version__
+    label = detect_platform_label(os_release_path=os_release_path) if platform is None else platform
+    if label:
+        return f"{APP_TITLE} · {label} · v{ver}"
+    return f"{APP_TITLE} · v{ver}"
+
+
+def render_page(csrf: str, no_auth: bool = False, *, platform: str | None = None, os_release_path=None) -> str:
     return (
         PAGE.replace("__CSRF__", csrf)
         .replace("__NO_AUTH__", "true" if no_auth else "false")
         .replace("__PAIR_CMD_1__", WINDOWS_PAIR_STEP1_PS)
         .replace("__PAIR_CMD_2__", WINDOWS_PAIR_STEP2_PS)
+        .replace("__PAGE_TITLE__", APP_TITLE)
+        .replace("__FOOTER_BRAND__", footer_brand(platform=platform, os_release_path=os_release_path))
     )
