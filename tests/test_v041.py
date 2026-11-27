@@ -12,13 +12,13 @@ UDID = "0123456789abcdef0123456789abcdef01234567"
 
 
 def test_version_and_default_port():
-    assert __version__ == "0.4.1"
+    assert __version__ == "0.4.2"
     assert DEFAULT_PORT == 19443
     html = render_page("csrf", no_auth=True)
     assert "19443" in html
     assert "47321" not in html
     assert "等待 Wi-Fi / 隧道恢复后自动重连…" in html
-    assert "v0.4.1" in html
+    assert "v0.4.2" in html
     assert html.index('id="map"') < html.index('id="device-select"')
     assert "opt.textContent = deviceTitle(item);" in html
     assert "deviceTitle(item) + \" · \" + deviceStatusText" not in html
@@ -29,7 +29,7 @@ def test_version_and_default_port():
     assert "一键安装 iOS 快捷指令" in html
     assert "https://www.icloud.com/shortcuts/" in html
     assert "pair-group" in html
-    assert "共享系统配置" in html
+    assert "共享系统配置" not in html
 
 
 def test_install_units_embed_port_19443_and_honor_override(tmp_path):

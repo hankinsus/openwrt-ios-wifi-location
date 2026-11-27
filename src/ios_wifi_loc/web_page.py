@@ -96,9 +96,9 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 .pair-step .pair-cmds { margin-top:8px; user-select:all; }
 .copy-btn { flex:none; min-width:auto; margin-left:auto; }
 
-.device-info { margin-top:10px; background:var(--bg); border-radius:10px; padding:12px; }
+.device-info { margin-top:10px; background:#e8f1ff; border:1px solid var(--blue); border-radius:10px; padding:12px; }
 .device-info-title { font-size:15px; font-weight:600; }
-.device-info-meta { font-size:12px; color:#8e8e93; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-top:4px; word-break:break-all; }
+.device-info-meta { font-size:12px; color:#3a3a3c; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-top:4px; word-break:break-all; }
 .device-info .device-status { margin-top:8px; }
 .pair-group { background:var(--bg); border-radius:10px; padding:12px; margin-bottom:8px; }
 .pair-group-head { font-size:14px; font-weight:600; margin-bottom:8px; }
@@ -151,7 +151,6 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
       <details id="manual-device">
         <summary>高级 / 手动添加</summary>
         <p class="notice" style="text-align:left;margin:8px 0 0 0">传输类型、主机和标识仅在设备未被自动发现时需要手动填写。</p>
-        <div id="devices" class="device-list" style="margin-top:8px"></div>
         <label>传输
           <select id="transport" class="field">
             <option value="mobdev2">mobdev2（无线）</option>
@@ -182,25 +181,40 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
 
     <div class="card">
       <div class="fav-header">
-        <h3>收藏的位置</h3>
+        <h3>我的收藏</h3>
         <button class="btn btn-sm btn-secondary" id="clear-favs" type="button">清空全部</button>
       </div>
       <div id="favs" class="fav-list"></div>
     </div>
 
     <div class="card">
-      <h3>当前模拟状态</h3>
-      <div class="active-loc">
-        <div class="label">本机命令与会话</div>
-        <div class="value" id="command-line">正在读取…</div>
+      <h3>输入坐标</h3>
+      <p class="notice" style="text-align:left;margin:0 0 8px 0">按 WGS-84 填写纬度与经度，或在一格里输入「纬度, 经度」，然后点「跳转」立刻把地图标到该位置并设为目标坐标。</p>
+      <div class="input-row">
+        <input id="coord-lat" inputmode="decimal" placeholder="纬度  如 35.6812" aria-label="纬度" autocomplete="off">
+        <input id="coord-lon" inputmode="decimal" placeholder="经度  如 139.7671" aria-label="经度" autocomplete="off">
       </div>
-      <div class="active-loc">
-        <div class="label">手机定位</div>
-        <div class="value" id="phone-line">未能确认。进程还在不能代表手机坐标。</div>
+      <div class="input-row">
+        <input id="coord-pair" placeholder="纬度, 经度  例如 35.6812, 139.7671" aria-label="纬度, 经度" autocomplete="off">
+        <button class="btn btn-primary" id="coord-go" type="button" style="flex:none;min-width:88px">跳转</button>
       </div>
-      <p class="notice" id="summary" style="text-align:left"></p>
     </div>
 
+    <div class="card">
+      <h3>搜索地点</h3>
+      <div class="input-row">
+        <input id="searchInput" placeholder="输入地名（如: 东京车站）">
+        <button class="btn btn-secondary" id="search" type="button" style="flex:none;min-width:56px">搜索</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>粘贴地图链接</h3>
+      <div class="input-row">
+        <input id="urlInput" placeholder="Apple / Google / 高德地图链接，或经纬度">
+        <button class="btn btn-secondary" id="parse-url" type="button" style="flex:none;min-width:56px">解析</button>
+      </div>
+    </div>
     <div class="card">
       <h3>iOS 快捷指令 &amp; 地图分享</h3>
       <div class="shortcut-install">
@@ -275,22 +289,6 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
     </div>
 
     <div class="card">
-      <h3>粘贴地图链接</h3>
-      <div class="input-row">
-        <input id="urlInput" placeholder="Apple / Google / 高德地图链接，或经纬度">
-        <button class="btn btn-secondary" id="parse-url" type="button" style="flex:none;min-width:56px">解析</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>搜索地点</h3>
-      <div class="input-row">
-        <input id="searchInput" placeholder="输入地名（如: 东京车站）">
-        <button class="btn btn-secondary" id="search" type="button" style="flex:none;min-width:56px">搜索</button>
-      </div>
-    </div>
-
-    <div class="card">
       <h3>配对管理（一键导入 .plist）</h3>
       <p class="notice" id="pair-status" style="text-align:left">正在读取配对状态…</p>
       <div id="pair-files"></div>
@@ -330,9 +328,23 @@ pymobiledevice3 lockdown wifi-connections on</pre>
       </div>
     </div>
 
+
+    <div class="card">
+      <h3>当前模拟状态</h3>
+      <div class="active-loc">
+        <div class="label">本机命令与会话</div>
+        <div class="value" id="command-line">正在读取…</div>
+      </div>
+      <div class="active-loc">
+        <div class="label">手机定位</div>
+        <div class="value" id="phone-line">未能确认。进程还在不能代表手机坐标。</div>
+      </div>
+      <p class="notice" id="summary" style="text-align:left"></p>
+    </div>
+
     <div class="footer-card">
       <div class="footer-brand">OpenWrt 无线虚拟定位</div>
-      <div class="footer-version">v0.4.1</div>
+      <div class="footer-version">v0.4.2</div>
       <p class="notice">仅供受信局域网使用。请勿把 19443 端口暴露到公网。</p>
     </div>
     <div class="status" id="status">在地图上选好位置后点击「设置定位」，然后在手机地图确认</div>
@@ -460,18 +472,23 @@ function paintDeviceSelect(data) {
   if (current) {
     if (info) info.hidden = false;
     if ($("device-info-title")) $("device-info-title").textContent = deviceTitle(current);
-    if ($("device-info-udid")) $("device-info-udid").textContent = "UDID  " + current.udid;
+    const bits = [];
+    if (current.transport || current.connection) bits.push(current.transport || current.connection);
+    bits.push(current.udid);
+    if (current.host) bits.push(current.host);
+    if ($("device-info-udid")) $("device-info-udid").textContent = bits.join("  ·  ");
     const badge = document.createElement("span");
     const waiting = (current.waiting_reconnect || current.waiting_for_wifi) && current.watchdog_active;
     const holding = current.holding || current.session_alive || current.desired;
     badge.className = "badge " + (waiting ? "badge-wait" : (holding || current.tunnel_ready ? "badge-on" : (ready ? "badge-wait" : "badge-off")));
-    badge.textContent = deviceStatusText(current, ready);
+    const statusText = deviceStatusText(current, ready);
+    badge.textContent = statusText === "隧道就绪" ? "隧道已就绪" : statusText;
     box.appendChild(badge);
   } else {
     if (info) info.hidden = !devices.length;
     if ($("device-info-title")) $("device-info-title").textContent = devices.length ? "请选择一台 iPhone" : "未发现设备";
     if ($("device-info-udid")) $("device-info-udid").textContent = "";
-    if (devices.length) box.textContent = "切换上方列表即可立即选中，无需再点按钮";
+    if (devices.length) box.textContent = "切换上方列表即可立即选中";
   }
 }
 function esc(s) {
@@ -605,50 +622,6 @@ function paint(data) {
   $("tunneld-line").textContent = ready
     ? ("tunneld 已运行，发现 " + ((tunneld.tunnels || []).length) + " 条无线隧道")
     : "tunneld 未运行。iOS 17+ 无线定位需要它，安装后应由系统服务自动拉起。";
-  const box = $("devices");
-  box.replaceChildren();
-  const devices = data.devices || [];
-  if (!devices.length) {
-    const empty = document.createElement("div");
-    empty.className = "fav-empty";
-    empty.textContent = "还没有发现设备。确认手机和路由器在同一局域网，并且已经导入配对文件。";
-    box.appendChild(empty);
-  }
-  const selectedId = (data.selected && data.selected.udid) || "";
-  devices.forEach((item) => {
-    const card = document.createElement("div");
-    card.className = "device-card" + (item.udid === selectedId ? " selected" : "");
-    const info = document.createElement("div");
-    info.className = "fav-info";
-    const name = document.createElement("div");
-    name.className = "fav-name";
-    name.textContent = (item.name || "iPhone") + (item.product_version ? ("  iOS " + item.product_version) : "");
-    const meta = document.createElement("div");
-    meta.className = "fav-coords";
-    let metaText = (item.transport || item.connection || "") + "  " + item.udid + (item.host ? ("  " + item.host) : "");
-    if (item.holding || item.session_alive) {
-      if (item.latitude != null && item.longitude != null) metaText += "  模拟中 " + item.latitude + ", " + item.longitude;
-      else metaText += "  模拟进程运行中";
-    }
-    meta.textContent = metaText;
-    info.appendChild(name);
-    info.appendChild(meta);
-    const badge = document.createElement("span");
-    const statusText = deviceStatusText(item, ready);
-    if ((item.waiting_reconnect || item.waiting_for_wifi) && item.watchdog_active) badge.className = "badge badge-wait";
-    else if (item.holding || item.session_alive || item.tunnel_ready) badge.className = "badge badge-on";
-    else badge.className = "badge " + (ready ? "badge-wait" : "badge-off");
-    badge.textContent = statusText === "隧道就绪" ? "隧道已就绪" : statusText;
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn btn-sm btn-primary";
-    btn.textContent = item.udid === selectedId ? "已选择" : "选择此设备";
-    btn.onclick = () => chooseDevice(item);
-    card.appendChild(info);
-    card.appendChild(badge);
-    card.appendChild(btn);
-    box.appendChild(card);
-  });
   if (data.selected && data.selected.udid) $("udid").value = data.selected.udid;
   if (data.selected && data.selected.transport) $("transport").value = data.selected.transport;
   if (data.selected && data.selected.host) $("host").value = data.selected.host;
@@ -742,12 +715,6 @@ function paint(data) {
       name.className = "pair-file-name";
       name.textContent = item.filename;
       row.appendChild(name);
-      if (item.system_configuration) {
-        const badge = document.createElement("span");
-        badge.className = "badge badge-wait";
-        badge.textContent = "共享系统配置";
-        row.appendChild(badge);
-      }
       const del = document.createElement("button");
       del.className = "fav-del";
       del.type = "button";
@@ -957,14 +924,39 @@ function fillShortcutUrls() {
     }, null, 2);
   }
 }
+function copyText(text) {
+  const value = String(text == null ? "" : text);
+  const fallback = () => {
+    const area = document.createElement("textarea");
+    area.value = value;
+    area.setAttribute("readonly", "readonly");
+    area.style.position = "fixed";
+    area.style.left = "-9999px";
+    area.style.top = "0";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.focus();
+    area.select();
+    area.setSelectionRange(0, 99999);
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(area);
+    return ok;
+  };
+  const succeed = () => { toast("已复制", 2000, "ok"); return true; };
+  const fail = () => { toast("复制失败，请手动选择文本", 2500, "bad"); return false; };
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(value).then(succeed).catch(() => fallback() ? succeed() : fail());
+  }
+  return Promise.resolve(fallback() ? succeed() : fail());
+}
 function bindCopy(id, sourceId) {
   const btn = $(id);
   if (!btn) return;
   btn.onclick = async () => {
     const node = $(sourceId);
     const value = node ? node.textContent : "";
-    try { await navigator.clipboard.writeText(value); toast("已复制到剪贴板", 2000, "ok"); }
-    catch (e) { toast("复制失败，请手动选择地址", 2500, "bad"); }
+    await copyText(value);
   };
 }
 fillShortcutUrls();
@@ -1081,6 +1073,30 @@ $("parse-url").onclick = () => {
 $("search").onclick = searchPlace;
 $("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter") searchPlace(); });
 $("urlInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("parse-url").click(); });
+function parseCoordFields() {
+  const pair = ($("coord-pair") && $("coord-pair").value || "").trim();
+  const raw = pair || (($("coord-lat") && $("coord-lat").value || "").trim() + "," + ($("coord-lon") && $("coord-lon").value || "").trim());
+  const nums = raw.replace(/，/g, ",").split(/[\s,;]+/).map((p) => p.trim()).filter(Boolean).map(Number);
+  if (nums.length < 2 || !isFinite(nums[0]) || !isFinite(nums[1])) return null;
+  let a = nums[0], o = nums[1];
+  if (Math.abs(a) > 90 && Math.abs(o) <= 90) { const t = a; a = o; o = t; }
+  if (Math.abs(a) > 90 || Math.abs(o) > 180) return null;
+  return {lat: a, lon: o};
+}
+function jumpToTypedCoords() {
+  const parsed = parseCoordFields();
+  if (!parsed) return toast("请输入有效的纬度, 经度", 2500, "bad");
+  moveTo(parsed.lat, parsed.lon, 15);
+  if ($("coord-lat")) $("coord-lat").value = parsed.lat.toFixed(6);
+  if ($("coord-lon")) $("coord-lon").value = parsed.lon.toFixed(6);
+  if ($("coord-pair")) $("coord-pair").value = parsed.lat.toFixed(6) + ", " + parsed.lon.toFixed(6);
+  toast("已设为目标坐标", 2000, "ok");
+}
+if ($("coord-go")) $("coord-go").onclick = jumpToTypedCoords;
+["coord-lat","coord-lon","coord-pair"].forEach((id) => {
+  const node = $(id);
+  if (node) node.addEventListener("keydown", (e) => { if (e.key === "Enter") jumpToTypedCoords(); });
+});
 $("drop").onclick = () => $("plist-files").click();
 $("plist-files").onchange = async (e) => {
   readPlistFiles(e.target.files);
@@ -1104,10 +1120,7 @@ document.querySelectorAll("[data-copy-target]").forEach((btn) => {
   btn.onclick = async () => {
     const target = $(btn.getAttribute("data-copy-target"));
     const value = target ? target.textContent : "";
-    try {
-      await navigator.clipboard.writeText(value);
-      toast("已复制到剪贴板", 2000, "ok");
-    } catch (e) { toast("复制失败，请手动选择命令", 2500, "bad"); }
+    await copyText(value);
   };
 });
 $("login-btn").onclick = async () => {
