@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import signal
 import subprocess
 import time
@@ -15,6 +16,7 @@ from ios_wifi_loc.session import (
 )
 from ios_wifi_loc.state import StateStore
 from ios_wifi_loc.tunneld import query_tunneld, tunnel_endpoint_for, tunnel_signature
+from ios_wifi_loc.simulate_loop import prefer_api_heartbeat, simulate_command_argv
 from ios_wifi_loc.upstream import PlanError, Target, location_argv
 
 ERROR_MARKERS = (
@@ -80,6 +82,14 @@ def settle_delay() -> float:
         return max(0.0, min(10.0, float(raw)))
     except ValueError:
         return 1.0
+
+
+def outage_strikes() -> int:
+    raw = os.environ.get("IOS_WIFI_LOC_WATCHDOG_STRIKES", "2")
+    try:
+        return max(1, min(8, int(raw)))
+    except ValueError:
+        return 2
 
 
 def classify_tunnel(udid: str, started: tuple[object, object] | None, info: dict) -> str | None:
@@ -335,7 +345,10 @@ def run_hold(store: StateStore, args: object) -> int:
                         _sleep(settle, stopped)
                     if stopped():
                         break
-            argv = location_argv(binary, target, "set", profile, lat, lon, use_tunnel=use_tunnel)
+            if prefer_api_heartbeat(binary, profile, use_tunnel):
+                argv = simulate_command_argv(sys.executable, store.directory, target, lat, lon)
+            else:
+                argv = location_argv(binary, target, "set", profile, lat, lon, use_tunnel=use_tunnel)
             child = spawn_child(argv, log_out, log_err, rotate=(attempt == 0))
             offset_err = log_err.stat().st_size if log_err.exists() else 0
             offset_out = log_out.stat().st_size if log_out.exists() else 0
@@ -378,6 +391,9 @@ def run_hold(store: StateStore, args: object) -> int:
                     )
                     return 1 if child.returncode else 4
             next_poll = time.monotonic()
+            strikes = 0
+            confirmed_outage = False
+            needed = outage_strikes()
             while not stopped() and child.poll() is None:
                 hit, excerpt, offset_err = log_contains_error(log_err, offset_err)
                 if not hit:
@@ -392,9 +408,12 @@ def run_hold(store: StateStore, args: object) -> int:
                     info = query_tunneld()
                     reason = classify_tunnel(udid, started_sig, info)
                     if reason == "unreachable":
+                        strikes += 1
                         if outage_since is None:
                             outage_since = now
-                        saw_outage = True
+                        if strikes >= needed:
+                            confirmed_outage = True
+                            saw_outage = True
                         _update_session(
                             store,
                             udid,
@@ -407,39 +426,50 @@ def run_hold(store: StateStore, args: object) -> int:
                             last_error="tunneld unreachable",
                             desired=True,
                         )
-                        # A long outage leaves a hung DTX child; drop it and wait to respawn.
-                        if now - outage_since >= max(poll_interval(), 0.2):
+                        # Ignore a single failed poll so a brief tunneld jitter
+                        # does not kill a healthy DVT session.
+                        if confirmed_outage and now - outage_since >= max(poll_interval(), 0.2):
                             last_error = "tunneld unreachable"
                             _kill_child(child)
                             break
-                    elif reason in {"missing", "changed"} or (reason is None and saw_outage):
-                        # Tunnel list dropped, the endpoint changed, or tunneld came
-                        # back after an outage — even on the same address/port the
-                        # old simulate-location process is no longer trustworthy.
-                        if reason == "changed":
-                            last_error = "tunnel endpoint changed"
-                        elif reason is None and saw_outage:
-                            last_error = "tunnel recovered after outage"
-                        else:
-                            last_error = "waiting_for_wifi"
+                    elif reason in {"missing", "changed"}:
+                        strikes += 1
+                        if reason == "changed" or strikes >= needed:
+                            if reason == "changed":
+                                last_error = "tunnel endpoint changed"
+                            else:
+                                last_error = "waiting_for_wifi"
+                                confirmed_outage = True
+                                saw_outage = True
+                            _kill_child(child)
+                            break
+                    elif reason is None and saw_outage and confirmed_outage:
+                        # Tunnel came back after a confirmed outage — even on
+                        # the same address/port the old DTX session may be stale.
+                        last_error = "tunnel recovered after outage"
                         _kill_child(child)
                         break
-                    elif reason is None and started_sig is None:
-                        started_sig = tunnel_signature(tunnel_endpoint_for(udid, info))
-                        if started_sig is not None:
-                            _update_session(
-                                store,
-                                udid,
-                                holding=True,
-                                child_pid=child.pid,
-                                waiting_reconnect=False,
-                                waiting_for_wifi=False,
-                                watchdog_active=True,
-                                reconnect_count=reconnect_count,
-                                desired=True,
-                                tunnel_address=started_sig[0],
-                                tunnel_port=started_sig[1],
-                            )
+                    elif reason is None:
+                        strikes = 0
+                        saw_outage = False
+                        outage_since = None
+                        confirmed_outage = False
+                        if started_sig is None:
+                            started_sig = tunnel_signature(tunnel_endpoint_for(udid, info))
+                            if started_sig is not None:
+                                _update_session(
+                                    store,
+                                    udid,
+                                    holding=True,
+                                    child_pid=child.pid,
+                                    waiting_reconnect=False,
+                                    waiting_for_wifi=False,
+                                    watchdog_active=True,
+                                    reconnect_count=reconnect_count,
+                                    desired=True,
+                                    tunnel_address=started_sig[0],
+                                    tunnel_port=started_sig[1],
+                                )
                 time.sleep(0.05)
             if stopped():
                 break

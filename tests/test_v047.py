@@ -51,10 +51,10 @@ def _wait_dead(pids: list[int], timeout: float = 3) -> bool:
 
 
 def test_version_is_047():
-    assert __version__ == "0.4.7"
+    assert __version__ == "0.4.8"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.7" in html
-    assert "OpenWrt 无线虚拟定位 · v0.4.7" in html
+    assert "v0.4.8" in html
+    assert "OpenWrt 无线虚拟定位 · v0.4.8" in html
     assert "v0.4.6" not in html
 
 
@@ -65,7 +65,8 @@ def test_ui_footer_and_layer_bar_source():
     assert "100vw" not in html
     assert ".map-wrap { width:100%; max-width:100%;" in html
     assert "overflow:visible" in html
-    assert "left:8px; right:8px;" in html
+    assert "left:auto; right:12px;" in html
+    assert "max-width:calc(100% - 56px)" in html
     assert "flex-wrap:wrap" in html
     assert "margin:28px auto 0 auto" in html
     assert "background:transparent" in html

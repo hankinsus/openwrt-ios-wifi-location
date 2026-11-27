@@ -40,7 +40,7 @@ label { display:block; font-size:13px; color:#3a3a3c; margin-top:8px; }
 .notice { font-size:12px; color:var(--gray); text-align:center; line-height:1.5; margin-top:8px; }
 .toast { position:fixed; top:60px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.8); color:#fff; padding:10px 20px; border-radius:20px; font-size:14px; opacity:0; transition:opacity .3s; pointer-events:none; z-index:9999; max-width:90%; }
 .toast.show { opacity:1; }
-.layer-switch { position:absolute; top:10px; left:8px; right:8px; width:auto; max-width:none; box-sizing:border-box; z-index:1000; display:flex; gap:4px; background:rgba(255,255,255,.92); border-radius:8px; padding:4px; box-shadow:0 2px 8px rgba(0,0,0,.15); flex-wrap:wrap; justify-content:flex-end; align-content:flex-start; min-width:0; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; }
+.layer-switch { position:absolute; top:10px; left:auto; right:12px; width:auto; max-width:calc(100% - 56px); box-sizing:border-box; z-index:1000; display:flex; gap:4px; background:rgba(255,255,255,.92); border-radius:8px; padding:4px; box-shadow:0 2px 8px rgba(0,0,0,.15); flex-wrap:wrap; justify-content:flex-end; align-content:flex-start; min-width:0; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; }
 .layer-btn { border:none; background:transparent; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; color:#333; font-weight:500; flex:0 0 auto; min-width:0; white-space:nowrap; }
 .layer-btn.active { background:var(--blue); color:#fff; }
 .active-loc { background:var(--bg); border-radius:8px; padding:10px 12px; font-size:13px; color:#333; margin-top:8px; }
@@ -133,7 +133,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
   .btn { min-height:44px; }
   .btn-sm { min-height:36px; }
   .device-select { width:100%; }
-  .layer-switch { left:8px; right:8px; max-width:none; }
+  .layer-switch { left:auto; right:12px; max-width:calc(100% - 56px); }
   .row .btn, .shortcut-install .btn { flex:1 1 calc(50% - 8px); }
 }
 .pair-group { background:var(--bg); border-radius:10px; padding:12px; margin-bottom:8px; }
@@ -295,7 +295,7 @@ details summary { cursor:pointer; color:#3a3a3c; font-size:13px; }
     </div>
 
     <div class="footer-card">
-      <div class="footer-brand">OpenWrt 无线虚拟定位 · v0.4.7</div>
+      <div class="footer-brand">OpenWrt 无线虚拟定位 · v0.4.8</div>
     </div>
     <p id="action-error" class="bad"></p>
     <p class="notice" id="logout-wrap" hidden><button class="btn btn-sm btn-secondary" id="logout" type="button">退出</button></p>

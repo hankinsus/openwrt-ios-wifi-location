@@ -30,10 +30,10 @@ def _inline_scripts(html: str) -> list[str]:
 
 
 def test_version_is_046():
-    assert __version__ == "0.4.7"
+    assert __version__ == "0.4.8"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.7" in html
-    assert "OpenWrt 无线虚拟定位 · v0.4.7" in html
+    assert "v0.4.8" in html
+    assert "OpenWrt 无线虚拟定位 · v0.4.8" in html
     assert "v0.4.5" not in html
 
 
@@ -45,7 +45,8 @@ def test_map_is_full_bleed_and_cards_stay_narrow():
     assert "100vw" not in html
     assert "border-radius:0" in html
     assert "overflow:visible" in html
-    assert "left:8px; right:8px;" in html
+    assert "left:auto; right:12px;" in html
+    assert "max-width:calc(100% - 56px)" in html
     assert "margin:28px auto 0 auto" in html
     assert "#map { height:420px;" in html
     assert "@media (max-width:1024px)" in html
@@ -241,6 +242,12 @@ def _run_viewport(browser, url: str, name: str, width: int, height: int) -> list
             const r = el.getBoundingClientRect();
             return { text: (el.innerText || "").trim(), left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
           });
+          const bar = document.querySelector(".layer-switch, #layers");
+          const barBox = bar ? bar.getBoundingClientRect() : {left:0,right:0,top:0,bottom:0,width:0,height:0};
+          const zoom = document.querySelector(".leaflet-control-zoom, .leaflet-control-zoom-in");
+          const zoomBox = zoom ? (zoom.classList && zoom.classList.contains("leaflet-control-zoom") ? zoom.getBoundingClientRect() : (zoom.closest(".leaflet-control-zoom") || zoom).getBoundingClientRect()) : {left:0,right:0,top:0,bottom:0,width:0,height:0};
+          const zoomOverlapX = Math.max(0, Math.min(barBox.right, zoomBox.right) - Math.max(barBox.left, zoomBox.left));
+          const zoomOverlapY = Math.max(0, Math.min(barBox.bottom, zoomBox.bottom) - Math.max(barBox.top, zoomBox.top));
           const footer = document.querySelector(".footer-card");
           const footerStyle = footer ? getComputedStyle(footer) : null;
           const footerGap = (footer && panel) ? (footer.getBoundingClientRect().top - panel.getBoundingClientRect().bottom) : -1;
@@ -261,6 +268,13 @@ def _run_viewport(browser, url: str, name: str, width: int, height: int) -> list
             footerMarginTop: footerStyle ? parseFloat(footerStyle.marginTop) || 0 : -1,
             footerBg: footerStyle ? footerStyle.backgroundColor : "",
             footerAfter,
+            barLeft: barBox.left,
+            barRight: barBox.right,
+            barWidth: barBox.width,
+            zoomLeft: zoomBox.left,
+            zoomRight: zoomBox.right,
+            zoomPresent: !!(zoom && zoomBox.width),
+            zoomOverlap: zoomOverlapX > 2 && zoomOverlapY > 2,
           };
         }"""
     )
@@ -295,6 +309,14 @@ def _run_viewport(browser, url: str, name: str, width: int, height: int) -> list
                 errors.append(
                     f"{name} layer button {item['text']!r} clipped: right={item['right']} left={item['left']} viewport={vw}"
                 )
+    if metrics.get("zoomPresent") and metrics.get("zoomOverlap"):
+        errors.append(
+            f"{name} layer bar covers zoom control: bar=({metrics.get('barLeft')},{metrics.get('barRight')}) zoom=({metrics.get('zoomLeft')},{metrics.get('zoomRight')})"
+        )
+    if metrics.get("barLeft", 0) < 40:
+        errors.append(f"{name} layer bar is not a compact top-right chip: left={metrics.get('barLeft')} width={metrics.get('barWidth')}")
+    if metrics.get("barWidth") and metrics.get("mapWidth") and metrics["barWidth"] > metrics["mapWidth"] - 40:
+        errors.append(f"{name} layer bar spans the map: barWidth={metrics.get('barWidth')} mapWidth={metrics.get('mapWidth')}")
     if metrics.get("footerMarginTop", -1) < 24:
         errors.append(f"{name} footer margin-top too small: {metrics.get('footerMarginTop')}")
     if metrics.get("footerAfter", -1) >= 0 and metrics["footerAfter"] < 20:

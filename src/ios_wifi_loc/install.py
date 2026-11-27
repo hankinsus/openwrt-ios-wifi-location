@@ -153,7 +153,7 @@ def _stale_process_cleanup_shell() -> str:
 		cmd=$(tr '\\0' ' ' < "$proc/cmdline" 2>/dev/null)
 		[ -n "$cmd" ] || continue
 		case "$cmd" in
-		*_hold*|*"simulate-location"*" set"*|*"developer dvt simulate-location"*)
+		*_hold*|*_simulate*|*"simulate-location"*" set"*|*"developer dvt simulate-location"*)
 			kill -TERM "$pid" 2>/dev/null || true
 			;;
 		esac
@@ -166,7 +166,7 @@ def _stale_process_cleanup_shell() -> str:
 		cmd=$(tr '\\0' ' ' < "$proc/cmdline" 2>/dev/null)
 		[ -n "$cmd" ] || continue
 		case "$cmd" in
-		*_hold*|*"simulate-location"*" set"*|*"developer dvt simulate-location"*)
+		*_hold*|*_simulate*|*"simulate-location"*" set"*|*"developer dvt simulate-location"*)
 			kill -KILL "$pid" 2>/dev/null || true
 			;;
 		esac

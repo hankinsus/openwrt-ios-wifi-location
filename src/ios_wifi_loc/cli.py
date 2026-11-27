@@ -123,6 +123,12 @@ def _parser() -> argparse.ArgumentParser:
     hold.add_argument("--longitude", required=True)
     hold.add_argument("--startup-grace", type=float, default=5)
     hold.add_argument("--use-tunnel", action="store_true")
+    simulate = sub.add_parser("_simulate", help=argparse.SUPPRESS)
+    simulate.add_argument("--udid", required=True)
+    simulate.add_argument("--latitude", required=True)
+    simulate.add_argument("--longitude", required=True)
+    simulate.add_argument("--interval", type=float, default=None)
+    simulate.add_argument("--host", default=None)
     return parser
 
 
@@ -272,6 +278,10 @@ def main(argv: list[str] | None = None) -> int:
             from ios_wifi_loc.watchdog import run_hold
 
             return run_hold(store, args)
+        elif args.cmd == "_simulate":
+            from ios_wifi_loc.simulate_loop import run_simulate
+
+            return run_simulate(args)
         elif args.cmd == "smoke":
             outcome = smoke(
                 store,

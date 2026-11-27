@@ -1,4 +1,4 @@
-# ios-wifi-loc 0.4.7
+# ios-wifi-loc 0.4.8
 
 在 R4S 或其它 OpenWrt / Debian / Ubuntu 机器上，**一条命令**完成下载、补齐环境和安装。升级同一条命令即可，会保留已有口令和配对文件：
 
@@ -75,6 +75,8 @@ v0.4.4 把两个已验证可用的 iOS 快捷指令做成网页一键安装按�
 配对列表的删除按钮与「我的收藏」统一为圆形浅底红 ×。网页「配对管理」默认只显示已导入列表和醒目的「下载 Windows 一键配对工具」按钮：双击运行即可自动检测/安装 Python（兼容 `python` / `py`，跳过 WindowsApps 空壳占位符；没有时用 `winget` 安装 Python 3.12 并刷新 PATH），开启开发者模式、配对并打开 Wi-Fi，再按当前网页地址把最新的 `<UDID>.plist` 和 `SystemConfiguration.plist` 自动上传到本机 `/api/pairing/import`。手动 PowerShell 步骤和拖拽上传收在默认折叠的「展开手动配置与手动上传」里，作为兜底。设备下拉框和选中卡片都会显示完整的手机名称与 iOS 版本（例如 `iPhone17 PRO (iOS 27.2.1)`），发现结果只有泛泛的「iPhone」时会回填已保存或配对记录里的名称，避免把友好名称冲掉。页面同时适配手机、iPad 和电脑宽度：窄屏竖排不溢出，长 UDID / IPv6 会换行，按钮更好点。
 
 v0.4.5 修复了配对管理卡片下方漏出残缺 HTML 文本的问题。电脑端把主容器收窄到 720px 居中，地图与卡片对齐，手机和 iPad 仍自适应、不溢出。选中设备蓝框改为三行：第一行左侧是设备名与 iOS 版本（例如 `iPhone17 PRO · iOS 27.2.1`），右侧同一行是蓝色「已选择」徽章；第二行是 UDID 与隧道信息；第三行是绿色状态胶囊，单独占一行。折叠面板里的手动配置改回简短的几行命令；完整的自动检测/安装 Python、开启开发者模式、配对开 Wi-Fi、并按网页地址自动上传两个 `.plist` 的能力，仍然保留在 Windows 一键配对工具（`.bat`）里。同时去掉「当前模拟状态」卡片和页脚长说明，页脚只保留 `OpenWrt 无线虚拟定位 · v0.4.5`。
+
+v0.4.8 修复实机上「1 秒真实定位、1 秒虚拟定位」来回跳的问题。排查确认这不是 watchdog / 网页 / 恢复循环在反复 `clear` 或重建进程（`simulate-location set` 进程一直活着，`reconnect_count` 仍为 0）：`pymobiledevice3` 11.63.1 的 `developer dvt simulate-location set` 只调用一次 `LocationSimulation.set()`，然后在同一条 DVT 会话里 `wait_return()` 干等。iOS 17+/27 的 CoreLocation 会把真 GPS / Wi-Fi 定位穿插进来。现在 `_hold` 在能导入上游 Python API 时，会在同一条持久 `LocationSimulation` 会话内按约 1 秒间隔重复 `set(lat, lon)` 压制回跳；测试用的假 `pymobiledevice3` 命令行路径保持不变。watchdog 对单次 tunneld 查询失败不再立即杀掉子进程。
 
 v0.4.7 针对实机 `ps` / `logread` 里同时出现两个 `_hold`、两个 `simulate-location set`，以及旧 `tunneld` 占着 49151 导致 procd `ios-wifi-loc::tunneld` crash loop 的问题做了根治：按 UDID 加线程锁和 `fcntl.flock`，拉起新 `_hold` 前先按进程表和 `state.json` 清掉该设备的旧 `_hold` / `simulate-location`；`serve()` 启动和停止时统一接管，避免升级后孤儿进程继续占着连接。网页点「设置定位」即使坐标没变也会先停掉旧会话再重新下发。OpenWrt `start_service` / `stop_service`（以及 systemd / OpenRC）会清理残留 holder 和占用 49151 的旧 tunneld，并把 procd `respawn` 调整为 `3600 10 3`。页脚与上方卡片拉开间距并去掉多余白框；图层切换栏改为在地图两侧留白内换行，不再使用会在 Windows 下溢出的 `100vw`，六个按钮在手机 / iPad / 电脑都完整可见。
 

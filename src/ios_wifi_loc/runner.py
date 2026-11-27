@@ -188,7 +188,7 @@ def holder_matches(pid: int) -> bool:
         return False
     text = process_args(pid)
     tokens = text.split()
-    if "_hold" in tokens:
+    if "_hold" in tokens or "_simulate" in tokens:
         return True
     return "simulate-location" in text and "set" in text
 
@@ -260,7 +260,7 @@ def list_process_table() -> list[tuple[int, str]]:
 
 def is_holder_command(text: str) -> bool:
     tokens = (text or "").split()
-    if "_hold" in tokens:
+    if "_hold" in tokens or "_simulate" in tokens:
         return True
     return "simulate-location" in text and "set" in tokens
 
