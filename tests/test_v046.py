@@ -30,10 +30,10 @@ def _inline_scripts(html: str) -> list[str]:
 
 
 def test_version_is_046():
-    assert __version__ == "0.4.8"
+    assert __version__ == "0.4.9"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.8" in html
-    assert "OpenWrt 无线虚拟定位 · v0.4.8" in html
+    assert "v0.4.9" in html
+    assert "OpenWrt 无线虚拟定位 · v0.4.9" in html
     assert "v0.4.5" not in html
 
 

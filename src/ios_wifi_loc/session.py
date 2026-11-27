@@ -266,13 +266,40 @@ def remember_desired_target(
         return dict(record)
 
 
+def desired_target_active(data: dict, udid: str | None) -> bool:
+    """True only when auto-restore should keep (re)starting a holder for this UDID."""
+    if not udid:
+        return False
+    item = desired_targets_map(data).get(udid)
+    if not isinstance(item, dict) or item.get("enabled") is False or item.get("cleared"):
+        return False
+    lat, lon = _target_coords(item)
+    return bool(lat and lon)
+
+
+def _forget_desired_in_data(data: dict, udid: str) -> None:
+    targets = desired_targets_map(data)
+    targets[udid] = {"udid": udid, "enabled": False, "cleared": True, "lat": None, "lon": None}
+    data["desired_targets"] = targets
+    session = _session_for(data, udid)
+    if session:
+        session = dict(session)
+        session["desired"] = False
+        session["latitude"] = None
+        session["longitude"] = None
+        session["holding"] = False
+        session["pid"] = None
+        session["watchdog_pid"] = None
+        session["child_pid"] = None
+        session["watchdog_active"] = False
+        _put_session(data, udid, session)
+
+
 def forget_desired_target(store: StateStore, udid: str | None) -> None:
     if not udid:
         return
     with store.transaction() as data:
-        targets = desired_targets_map(data)
-        targets.pop(udid, None)
-        data["desired_targets"] = targets
+        _forget_desired_in_data(data, udid)
 
 
 def backfill_desired_targets(data: dict) -> dict:
@@ -327,56 +354,69 @@ def auto_restore_enabled() -> bool:
 
 
 _RESUME_LOCK = threading.Lock()
-_UDID_THREAD_LOCKS: dict[str, threading.Lock] = {}
+_UDID_THREAD_LOCKS: dict[str, threading.RLock] = {}
 _UDID_THREAD_GUARD = threading.Lock()
+_LOCK_STATE = threading.local()
 
 
 def _safe_udid_token(udid: str) -> str:
     return "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in udid)
 
 
-def _thread_lock_for_udid(udid: str) -> threading.Lock:
+def _thread_lock_for_udid(udid: str) -> threading.RLock:
     with _UDID_THREAD_GUARD:
         lock = _UDID_THREAD_LOCKS.get(udid)
         if lock is None:
-            lock = threading.Lock()
+            lock = threading.RLock()
             _UDID_THREAD_LOCKS[udid] = lock
         return lock
 
 
 @contextmanager
 def hold_spawn_lock(store: StateStore, udid: str):
-    """Serialize starting/stopping _hold for one UDID (thread + fcntl file lock)."""
+    """Serialize starting/stopping _hold for one UDID (reentrant thread + fcntl file lock)."""
     thread_lock = _thread_lock_for_udid(udid)
     thread_lock.acquire()
+    owned = getattr(_LOCK_STATE, "owned", None)
+    if owned is None:
+        owned = set()
+        _LOCK_STATE.owned = owned
+        _LOCK_STATE.handles = {}
+    outermost = udid not in owned
     handle = None
     try:
-        path = store.directory / f"hold.{_safe_udid_token(udid)}.lock"
-        path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
-        handle = open(path, "a+", encoding="utf-8")
-        try:
-            import fcntl
-
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        except ImportError:
-            pass
-        try:
-            os.chmod(path, 0o600)
-        except OSError:
-            pass
-        yield
-    finally:
-        if handle is not None:
+        if outermost:
+            owned.add(udid)
+            path = store.directory / f"hold.{_safe_udid_token(udid)}.lock"
+            path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+            handle = open(path, "a+", encoding="utf-8")
             try:
                 import fcntl
 
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-            except (ImportError, OSError):
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            except ImportError:
                 pass
             try:
-                handle.close()
+                os.chmod(path, 0o600)
             except OSError:
                 pass
+            _LOCK_STATE.handles[udid] = handle
+        yield
+    finally:
+        if outermost:
+            handle = _LOCK_STATE.handles.pop(udid, handle)
+            if handle is not None:
+                try:
+                    import fcntl
+
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                except (ImportError, OSError):
+                    pass
+                try:
+                    handle.close()
+                except OSError:
+                    pass
+            owned.discard(udid)
         thread_lock.release()
 
 
@@ -506,37 +546,43 @@ def resume_desired_targets(
             if is_holding and extras <= 1:
                 results.append({"udid": udid, "action": "already_holding", "ok": True, "lat": item["lat"], "lon": item["lon"]})
                 continue
-            if apply is not None:
-                outcome = apply(item)
-                ok = True if outcome is None else bool(getattr(outcome, "ok", outcome))
-                results.append({"udid": udid, "action": "resumed", "ok": ok, "lat": item["lat"], "lon": item["lon"]})
+            with hold_spawn_lock(store, udid):
                 data = store.load()
-                continue
-            selected = select_device(
-                store,
-                udid=udid,
-                transport=item.get("transport") or "mobdev2",
-                host=item.get("host"),
-                name=None,
-                allow_usb=allow_usb,
-                usbmux_address=None,
-            )
-            if not selected.ok:
-                results.append({"udid": udid, "action": "select_failed", "ok": False, "error": selected.summary})
-                continue
-            outcome = set_location(
-                store,
-                binary,
-                latitude=item["lat"],
-                longitude=item["lon"],
-                profile=item.get("profile") or "ios17",
-                timeout=timeout,
-                grace=grace,
-                foreground=False,
-                allow_usb=allow_usb,
-                allow_legacy=allow_legacy,
-                replace=True,
-            )
+                if not desired_target_active(data, udid):
+                    results.append({"udid": udid, "action": "skipped", "ok": True, "code": "NOT_DESIRED", "lat": item["lat"], "lon": item["lon"]})
+                    continue
+                if apply is not None:
+                    outcome = apply(item)
+                    ok = True if outcome is None else bool(getattr(outcome, "ok", outcome))
+                    results.append({"udid": udid, "action": "resumed", "ok": ok, "lat": item["lat"], "lon": item["lon"]})
+                    data = store.load()
+                    continue
+                selected = select_device(
+                    store,
+                    udid=udid,
+                    transport=item.get("transport") or "mobdev2",
+                    host=item.get("host"),
+                    name=None,
+                    allow_usb=allow_usb,
+                    usbmux_address=None,
+                )
+                if not selected.ok:
+                    results.append({"udid": udid, "action": "select_failed", "ok": False, "error": selected.summary})
+                    continue
+                outcome = set_location(
+                    store,
+                    binary,
+                    latitude=item["lat"],
+                    longitude=item["lon"],
+                    profile=item.get("profile") or "ios17",
+                    timeout=timeout,
+                    grace=grace,
+                    foreground=False,
+                    allow_usb=allow_usb,
+                    allow_legacy=allow_legacy,
+                    replace=True,
+                    only_if_desired=True,
+                )
             results.append(
                 {
                     "udid": udid,
@@ -800,6 +846,7 @@ def _apply_location(
     allow_legacy: bool,
     usbmux_address: str | None = None,
     replace: bool = False,
+    only_if_desired: bool = False,
 ) -> Outcome:
     try:
         lat, lon = parse_pair(latitude, longitude)
@@ -819,7 +866,7 @@ def _apply_location(
     except (PlanError, IdentifierError) as exc:
         return _fail("VALIDATION", 2, str(exc))
     with hold_spawn_lock(store, target.udid):
-        return _apply_location_locked(
+        outcome = _apply_location_locked(
             store,
             binary,
             target=target,
@@ -833,7 +880,20 @@ def _apply_location(
             allow_legacy=allow_legacy,
             usbmux_address=usbmux_address,
             replace=replace,
+            only_if_desired=only_if_desired,
         )
+        # Remember under the same lock. Resume (only_if_desired) never rewrites
+        # desired_targets, so a concurrent clear cannot be undone after spawn.
+        if outcome.ok and outcome.code != "NOT_DESIRED" and not only_if_desired:
+            udid = (outcome.details or {}).get("udid") or target.udid
+            remember_desired_target(
+                store,
+                udid=str(udid),
+                lat=str((outcome.details or {}).get("latitude") or lat),
+                lon=str((outcome.details or {}).get("longitude") or lon),
+                profile=str((outcome.details or {}).get("profile") or profile),
+            )
+        return outcome
 
 
 def _apply_location_locked(
@@ -851,9 +911,18 @@ def _apply_location_locked(
     allow_legacy: bool,
     usbmux_address: str | None,
     replace: bool,
+    only_if_desired: bool = False,
 ) -> Outcome:
     lat, lon = latitude, longitude
     data = _release_stale_holder(store, store.load())
+    if only_if_desired and not desired_target_active(data, target.udid):
+        return Outcome(
+            True,
+            "NOT_DESIRED",
+            0,
+            "该设备已恢复真实定位，不再自动下发。",
+            {"udid": target.udid},
+        )
     session = _session_for(data, target.udid) or {}
     live = pids_matching(udid=target.udid, holders=True)
     recorded = session.get("pid")
@@ -1009,8 +1078,9 @@ def set_location(
     allow_legacy: bool,
     usbmux_address: str | None = None,
     replace: bool = False,
+    only_if_desired: bool = False,
 ) -> Outcome:
-    outcome = _remember(
+    return _remember(
         store,
         _apply_location(
             store,
@@ -1025,19 +1095,9 @@ def set_location(
             allow_legacy=allow_legacy,
             usbmux_address=usbmux_address,
             replace=replace,
+            only_if_desired=only_if_desired,
         ),
     )
-    if outcome.ok:
-        udid = (outcome.details or {}).get("udid")
-        if udid:
-            remember_desired_target(
-                store,
-                udid=str(udid),
-                lat=str((outcome.details or {}).get("latitude") or latitude),
-                lon=str((outcome.details or {}).get("longitude") or longitude),
-                profile=str((outcome.details or {}).get("profile") or profile),
-            )
-    return outcome
 
 
 def _wait_foreground(store: StateStore, binary: str, proc, timeout: float, allow_usb: bool) -> Outcome:
@@ -1183,10 +1243,22 @@ def clear_location(
     allow_usb: bool,
     profile: str | None = None,
 ) -> Outcome:
-    outcome = _remember(store, _clear_location(store, binary, timeout=timeout, allow_usb=allow_usb, profile=profile))
-    if outcome.ok:
-        forget_desired_target(store, (outcome.details or {}).get("udid"))
-    return outcome
+    data = store.load()
+    try:
+        udid = _selected_target(data).udid
+    except (PlanError, IdentifierError):
+        selected = data.get("selected") if isinstance(data.get("selected"), dict) else {}
+        udid = selected.get("udid")
+    if not udid:
+        return _remember(store, _clear_location(store, binary, timeout=timeout, allow_usb=allow_usb, profile=profile))
+    # Forget desired_targets *before* stopping the holder, under the same
+    # per-UDID lock that resume/set_location uses, so restore_desired_loop
+    # cannot respawn a new _hold while clear is still running.
+    with hold_spawn_lock(store, udid):
+        forget_desired_target(store, udid)
+        outcome = _remember(store, _clear_location(store, binary, timeout=timeout, allow_usb=allow_usb, profile=profile))
+        forget_desired_target(store, udid)
+        return outcome
 
 
 def _public_sessions(data: dict) -> list[dict]:

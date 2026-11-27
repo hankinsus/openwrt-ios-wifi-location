@@ -6,9 +6,9 @@ from ios_wifi_loc.windows_pair import render_windows_pair_bat
 
 
 def test_version_is_045():
-    assert __version__ == "0.4.8"
+    assert __version__ == "0.4.9"
     html = render_page("csrf", no_auth=True)
-    assert "v0.4.8" in html
+    assert "v0.4.9" in html
     assert "v0.4.4" not in html
 
 
@@ -79,7 +79,7 @@ def test_status_card_and_extra_copy_are_gone():
     assert "未能确认。进程还在不能代表手机坐标" not in html
     assert "仅供受信局域网使用" not in html
     assert "请勿把 19443 端口暴露到公网" not in html
-    assert "OpenWrt 无线虚拟定位 · v0.4.8" in html
+    assert "OpenWrt 无线虚拟定位 · v0.4.9" in html
     assert 'id="action-error"' in html
     for ident in ("command-line", "phone-line", "tunneld-line", "summary"):
         assert f'$("{ident}")' not in html

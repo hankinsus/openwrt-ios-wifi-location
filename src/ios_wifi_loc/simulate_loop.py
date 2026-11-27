@@ -111,6 +111,11 @@ async def refresh_location(sim, latitude: float, longitude: float, interval: flo
 async def _open_rsd(udid: str):
     from pymobiledevice3.tunneld.api import get_tunneld_device_by_udid
 
+    # pymobiledevice3==11.63.1 signatures (PyPI wheel):
+    #   async def get_tunneld_device_by_udid(udid, tunneld_address: tuple[str, int] = ("127.0.0.1", 49151))
+    #   DvtProvider / LocationSimulation are async context managers (__aenter__/__aexit__)
+    #   async def LocationSimulation.set(self, latitude, longitude)
+    # Await the coroutine when present; keep a sync fallback for older/newer wheels.
     result = get_tunneld_device_by_udid(udid, tunneld_address())
     if asyncio.iscoroutine(result):
         result = await result
