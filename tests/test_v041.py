@@ -12,12 +12,12 @@ UDID = "0123456789abcdef0123456789abcdef01234567"
 
 
 def test_version_and_default_port():
-    assert __version__ == "0.5.18"
+    assert __version__ == "0.5.19"
     assert DEFAULT_PORT == 19443
     html = render_page("csrf", no_auth=True)
     assert "47321" not in html
     assert "等待 Wi-Fi / 隧道恢复后自动重连…" in html
-    assert "v0.5.18" in html
+    assert "v0.5.19" in html
     assert html.index('id="map"') < html.index('id="device-select"')
     assert "opt.textContent = deviceTitle(item);" in html
     assert "deviceTitle(item) + \" · \" + deviceStatusText" not in html
@@ -25,8 +25,8 @@ def test_version_and_default_port():
     assert "已回到默认位置（东京）" in html
     assert "Only secure origins are allowed" not in html
     assert "浏览器仅在 HTTPS 下允许获取本机 GPS" not in html
-    assert "一键安装：地图分享定位" in html
-    assert "一键安装：恢复真实定位" in html
+    assert "地图分享定位" in html
+    assert "恢复真实定位" in html
     assert "https://www.icloud.com/shortcuts/" in html
     assert "pair-group" in html
     assert "共享系统配置" not in html

@@ -144,6 +144,12 @@ details summary:active { background:#e8e8ed; }
 .badge-pick { background:var(--blue); color:#fff; flex-shrink:0; }
 .badge-connected { background:#0b7a32; color:#fff; flex-shrink:0; }
 .badge-disconnected { background:#fff3cd; color:#8a6d00; flex-shrink:0; }
+@media (min-width:1025px) {
+  #login-card { max-width:600px; padding:14px 16px; }
+  .panel { max-width:600px; padding:14px 16px; }
+  .card { padding:14px; margin-bottom:10px; }
+  .shortcut-install .btn { flex:1 1 calc(50% - 8px); }
+}
 @media (max-width:420px) {
   .device-info-head { align-items:center; }
 }
@@ -273,8 +279,8 @@ details summary:active { background:#e8e8ed; }
       <h3>iOS 快捷指令 &amp; 地图分享</h3>
       <p class="notice" style="text-align:left;margin:0 0 10px 0">在 iPhone 上安装下面两个快捷指令后，可用「分享」把高德 / 苹果 / Google / 百度地图链接直接发给本机定位，或一键恢复真实定位。</p>
       <div class="row shortcut-install" style="margin-top:0">
-        <a class="btn btn-primary" href="https://www.icloud.com/shortcuts/cf3227b48a8f484283069a087727f861" target="_blank" rel="noopener noreferrer">一键安装：地图分享定位</a>
-        <a class="btn btn-primary" href="https://www.icloud.com/shortcuts/395385a36be94384a85480d7459d1fa1" target="_blank" rel="noopener noreferrer">一键安装：恢复真实定位</a>
+        <a class="btn btn-primary" href="https://www.icloud.com/shortcuts/cf3227b48a8f484283069a087727f861" target="_blank" rel="noopener noreferrer">地图分享定位</a>
+        <a class="btn btn-primary" href="https://www.icloud.com/shortcuts/395385a36be94384a85480d7459d1fa1" target="_blank" rel="noopener noreferrer">恢复真实定位</a>
       </div>
       <p class="notice" style="text-align:left;margin:10px 0 0 0">安装后如本机地址不是默认地址，在快捷指令里改成当前访问地址即可。</p>
     </div>

@@ -23,7 +23,7 @@ UDID = "0123456789abcdef0123456789abcdef01234567"
 
 
 def test_version_is_040():
-    assert __version__ == "0.5.18"
+    assert __version__ == "0.5.19"
 
 
 def test_gcj_and_bd09_convert_inside_china():
@@ -156,8 +156,8 @@ def test_web_page_shortcut_and_windows_tool_copy():
     assert "下载 Windows 一键配对工具 (.bat)" in html
     assert "replace: true" in html
     assert "已回到当前保存位置" in html
-    assert "一键安装：地图分享定位" in html
-    assert "一键安装：恢复真实定位" in html
+    assert "地图分享定位" in html
+    assert "恢复真实定位" in html
     assert "window.isSecureContext" in html
     assert "Only secure origins are allowed" not in html
 

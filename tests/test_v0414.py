@@ -15,10 +15,10 @@ HOST_B = "fe80::2%br-lan"
 
 
 def test_version_is_0414():
-    assert __version__ == "0.5.18"
+    assert __version__ == "0.5.19"
     html = render_page("csrf", no_auth=True, platform="")
     assert "<title>WiFi 虚拟定位</title>" in html
-    assert "WiFi 虚拟定位 · v0.5.18" in html
+    assert "WiFi 虚拟定位 · v0.5.19" in html
     assert "v0.4.13" not in html
 
 

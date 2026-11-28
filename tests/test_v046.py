@@ -30,11 +30,11 @@ def _inline_scripts(html: str) -> list[str]:
 
 
 def test_version_is_046():
-    assert __version__ == "0.5.18"
+    assert __version__ == "0.5.19"
     html = render_page("csrf", no_auth=True)
-    assert "v0.5.18" in html
+    assert "v0.5.19" in html
     assert "<title>WiFi 虚拟定位</title>" in html
-    assert "WiFi 虚拟定位" in html and "v0.5.18" in html
+    assert "WiFi 虚拟定位" in html and "v0.5.19" in html
     assert "OpenWrt 无线虚拟定位" not in html
     assert "v0.4.5" not in html
 
@@ -371,8 +371,8 @@ def _run_viewport(browser, url: str, name: str, width: int, height: int) -> list
         href = page.get_attribute("#download-windows-pair", "href") or ""
         if "/api/tools/windows-pair.bat" not in href:
             errors.append(f"{name} windows-pair href unexpected: {href!r}")
-        set_link = page.locator("a", has_text="一键安装：地图分享定位")
-        clear_link = page.locator("a", has_text="一键安装：恢复真实定位")
+        set_link = page.locator("a", has_text="地图分享定位")
+        clear_link = page.locator("a", has_text="恢复真实定位")
         if "icloud.com/shortcuts/" not in (set_link.get_attribute("href") or ""):
             errors.append(f"{name} shortcut set link missing")
         if "icloud.com/shortcuts/" not in (clear_link.get_attribute("href") or ""):

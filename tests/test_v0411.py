@@ -14,10 +14,10 @@ def _release(tmp_path: Path, name: str, text: str) -> Path:
 
 
 def test_version_is_0411():
-    assert __version__ == "0.5.18"
+    assert __version__ == "0.5.19"
     html = render_page("csrf", no_auth=True, platform="")
     assert "<title>WiFi 虚拟定位</title>" in html
-    assert "WiFi 虚拟定位 · v0.5.18" in html
+    assert "WiFi 虚拟定位 · v0.5.19" in html
     assert "OpenWrt 无线虚拟定位" not in html
     assert "v0.4.10" not in html
 
@@ -54,14 +54,14 @@ def test_footer_and_title_include_detected_platform(tmp_path):
     openwrt = _release(tmp_path, "openwrt", "NAME=OpenWrt\nID=openwrt\n")
     html = render_page("csrf", no_auth=True, os_release_path=openwrt)
     assert "<title>WiFi 虚拟定位</title>" in html
-    assert "WiFi 虚拟定位 · OpenWrt · v0.5.18" in html
+    assert "WiFi 虚拟定位 · OpenWrt · v0.5.19" in html
 
     ubuntu = _release(tmp_path, "ubuntu", 'NAME="Ubuntu"\nID=ubuntu\n')
     html = render_page("csrf", no_auth=True, os_release_path=ubuntu)
-    assert "WiFi 虚拟定位 · Ubuntu · v0.5.18" in html
+    assert "WiFi 虚拟定位 · Ubuntu · v0.5.19" in html
 
     html = render_page("csrf", no_auth=True, platform="")
-    assert "WiFi 虚拟定位 · v0.5.18" in html
-    assert "WiFi 虚拟定位 ·  · v0.5.18" not in html
-    assert footer_brand(platform="Debian") == "WiFi 虚拟定位 · Debian · v0.5.18"
-    assert footer_brand(platform="") == "WiFi 虚拟定位 · v0.5.18"
+    assert "WiFi 虚拟定位 · v0.5.19" in html
+    assert "WiFi 虚拟定位 ·  · v0.5.19" not in html
+    assert footer_brand(platform="Debian") == "WiFi 虚拟定位 · Debian · v0.5.19"
+    assert footer_brand(platform="") == "WiFi 虚拟定位 · v0.5.19"

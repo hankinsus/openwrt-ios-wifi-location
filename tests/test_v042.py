@@ -10,9 +10,9 @@ def _order(*labels: str, html: str) -> None:
 
 
 def test_version_is_042():
-    assert __version__ == "0.5.18"
+    assert __version__ == "0.5.19"
     html = render_page("csrf", no_auth=True)
-    assert "v0.5.18" in html
+    assert "v0.5.19" in html
 
 
 def test_single_blue_device_card_and_manual_fallback_only():

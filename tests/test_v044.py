@@ -18,9 +18,9 @@ CLEAR_URL = "https://www.icloud.com/shortcuts/395385a36be94384a85480d7459d1fa1"
 
 
 def test_version_is_044():
-    assert __version__ == "0.5.18"
+    assert __version__ == "0.5.19"
     html = render_page("csrf", no_auth=True)
-    assert "v0.5.18" in html
+    assert "v0.5.19" in html
     assert "v0.4.3" not in html
 
 
@@ -70,8 +70,8 @@ def test_shortcut_card_is_simple_install_buttons():
     html = render_page("csrf", no_auth=True)
     assert SET_URL in html
     assert CLEAR_URL in html
-    assert "一键安装：地图分享定位" in html
-    assert "一键安装：恢复真实定位" in html
+    assert "地图分享定位" in html
+    assert "恢复真实定位" in html
     assert "安装后如本机地址不是默认地址" in html
     assert 'id="shortcut-set-icloud"' not in html
     assert 'id="shortcut-clear-icloud"' not in html
@@ -91,7 +91,7 @@ def test_shortcut_card_is_simple_install_buttons():
     # Keep the pairing Windows tool download and the APIs themselves in the product,
     # but the simplified card no longer prints raw API URLs.
     assert "下载 Windows 一键配对工具 (.bat)" in html
-    assert html.index("一键安装：地图分享定位") < html.index("一键安装：恢复真实定位")
+    assert html.index(">地图分享定位</a>") < html.index(">恢复真实定位</a>")
 
 
 def test_pairing_delete_button_matches_favorite_style():
@@ -225,6 +225,6 @@ def test_device_dropdown_and_card_show_name_and_ios_version():
     assert "@media (max-width:600px)" in html
     assert "max-width:720px" in html
     assert "@media (min-width:601px) and (max-width:1024px)" not in html
-    assert "@media (min-width:1025px)" not in html
+    assert "@media (min-width:1025px)" in html
     assert "min-height:44px" in html
     assert "flex-shrink:0" in html
