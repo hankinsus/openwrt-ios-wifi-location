@@ -5,10 +5,10 @@ from ios_wifi_loc.web_page import render_page
 
 
 def test_version_is_0515():
-    assert __version__ == "0.5.19"
+    assert __version__ == "0.5.20"
     html = render_page("csrf", no_auth=True, platform="")
     assert "<title>WiFi 虚拟定位</title>" in html
-    assert "WiFi 虚拟定位 · v0.5.19" in html
+    assert "WiFi 虚拟定位 · v0.5.20" in html
     assert "v0.4.14" not in html
     assert "v0.4.15" not in html
 

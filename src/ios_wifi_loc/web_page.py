@@ -434,7 +434,46 @@ function deviceCardTitle(item) {
   const version = deviceVersion(item);
   return version ? (name + " · iOS " + version) : name;
 }
+function versionMajor(version) {
+  const major = parseInt(version, 10);
+  return isNaN(major) ? null : major;
+}
+function deviceCommandProfile(item) {
+  if (!item || !item.udid) return "";
+  if (item.profile === "pre17" || item.profile === "ios17") return item.profile;
+  const sessions = lastPayload.sessions || [];
+  let session = null;
+  for (let i = 0; i < sessions.length; i++) {
+    if (sessions[i] && sessions[i].udid === item.udid) { session = sessions[i]; break; }
+  }
+  if (!session && lastPayload.session && lastPayload.session.udid === item.udid) session = lastPayload.session;
+  if (session && (session.profile === "pre17" || session.profile === "ios17")) return session.profile;
+  const targets = lastPayload.desired_targets || [];
+  for (let i = 0; i < targets.length; i++) {
+    const target = targets[i];
+    if (!target || target.udid !== item.udid || target.enabled === false || target.cleared) continue;
+    if (target.profile === "pre17" || target.profile === "ios17") return target.profile;
+  }
+  return "";
+}
+function isPre17Device(item) {
+  const major = versionMajor(deviceVersion(item));
+  if (major != null) return major < 17;
+  return deviceCommandProfile(item) === "pre17";
+}
+function deviceDiscovered(item) {
+  return !!(item && String(item.host || "").trim());
+}
+function pre17LocationActive(item) {
+  if (!item || item.latitude == null || item.longitude == null) return false;
+  if (String(item.latitude).trim() === "" || String(item.longitude).trim() === "") return false;
+  if (item.desired === false) return false;
+  return true;
+}
 function deviceStatusText(item, tunneldReady) {
+  // iOS 16 and earlier keep a developer location without a tunnel, so the
+  // card reports discovery and whether that location is still active.
+  if (isPre17Device(item)) return pre17LocationActive(item) ? "已定位" : "";
   if (item.waiting_for_wifi && item.watchdog_active) return "等待 Wi-Fi / 隧道恢复后自动重连…";
   if (item.waiting_reconnect && item.watchdog_active) return "等待隧道恢复自动重连…";
   if ((item.holding || item.session_alive) && item.watchdog_active) {
@@ -531,19 +570,28 @@ function paintDeviceSelect(data) {
     fillMetaRow("device-info-udid", "UDID", current.udid || "");
     fillMetaRow("device-info-host", "IP", current.host || "");
     if (picked) {
-      const connected = !!(current.tunnel_connected || current.tunnel_ready);
-      picked.hidden = false;
-      picked.textContent = connected ? "已连接" : "未连接";
-      picked.className = "badge " + (connected ? "badge-connected" : "badge-disconnected");
+      if (isPre17Device(current)) {
+        const discovered = deviceDiscovered(current);
+        picked.hidden = false;
+        picked.textContent = discovered ? "已发现" : "未发现";
+        picked.className = "badge " + (discovered ? "badge-connected" : "badge-disconnected");
+      } else {
+        const connected = !!(current.tunnel_connected || current.tunnel_ready);
+        picked.hidden = false;
+        picked.textContent = connected ? "已连接" : "未连接";
+        picked.className = "badge " + (connected ? "badge-connected" : "badge-disconnected");
+      }
     }
     if (box) {
-      const badge = document.createElement("span");
-      const waiting = (current.waiting_reconnect || current.waiting_for_wifi) && current.watchdog_active;
-      const holding = current.holding || current.session_alive || current.desired;
-      badge.className = "badge " + (waiting ? "badge-wait" : (holding || current.tunnel_ready ? "badge-on" : (ready ? "badge-wait" : "badge-off")));
       const statusText = deviceStatusText(current, ready);
-      badge.textContent = statusText === "隧道就绪" ? "隧道已就绪" : statusText;
-      box.appendChild(badge);
+      if (statusText) {
+        const badge = document.createElement("span");
+        const waiting = (current.waiting_reconnect || current.waiting_for_wifi) && current.watchdog_active;
+        const holding = current.holding || current.session_alive || current.desired;
+        badge.className = "badge " + (isPre17Device(current) ? "badge-on" : (waiting ? "badge-wait" : (holding || current.tunnel_ready ? "badge-on" : (ready ? "badge-wait" : "badge-off"))));
+        badge.textContent = statusText === "隧道就绪" ? "隧道已就绪" : statusText;
+        box.appendChild(badge);
+      }
     }
   } else {
     if (info) info.hidden = !devices.length;

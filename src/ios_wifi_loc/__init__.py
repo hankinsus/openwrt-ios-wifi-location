@@ -5,4 +5,4 @@ validates arguments, chooses a documented command, and reports what that
 command actually did.
 """
 
-__version__ = "0.5.19"
+__version__ = "0.5.20"
